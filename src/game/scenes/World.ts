@@ -106,7 +106,11 @@ export class World extends Scene
             this.world.findWalkableAt(96, 96),
             this.world.findWalkableAt(160, 160),
         ];
-        const settlerTextures = ['settler-red', 'settler-blue', 'settler-green'];
+        const settlerTextures = [
+            'settler-red-long',
+            'settler-blue',
+            'settler-green',
+        ];
         for (let i = 0; i < spawnPoints.length; i++)
         {
             createSettler(

@@ -291,7 +291,65 @@ const SETTLER_S_WALK_A = [
     '.ouuuuTTuuuuuttX',
     '.ouTuTuuuTuuuTut',
     '.oPPoPPoPPoPPoPo',
-    '.oPoooPoooPoooPo', // legs shifted
+    '.oPoooPoooPoooPo', // shifted
+];
+
+// Long-hair variants — same head, hair extends down past the shoulders.
+const SETTLER_S_LONG_IDLE = [
+    '....jjjjjjjj....',
+    '...jHHHHHHHHj...',
+    '..jHHHHHHHHHHj..',
+    '.jHHsssoosssHHj.',
+    '.jHHsfffsfffsHH.',
+    '.oSSfsSSSfsSffXo',
+    '.ofSfffSfffSffXo',
+    '.oSfeeSfeeSffXXo',
+    '.ofSffSffSffSffXo',
+    '.oSSSmmmSSSXffXo',
+    '..oSSSSSSSSSXXo.',
+    '..HHHHTTTTHHHH.',  // hair drapes on shoulders
+    '.HHHHHTTTTHHHHH', // hair drapes wider
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.oPo.oPo.oPo.oPo',
+];
+
+const SETTLER_S_LONG_WALK_A = [
+    '....jjjjjjjj....',
+    '...jHHHHHHHHj...',
+    '..jHHHHHHHHHHj..',
+    '.jHHsssoosssHHj.',
+    '.jHHsfffsfffsHH.',
+    '.oSSfsSSSfsSffXo',
+    '.ofSfffSfffSffXo',
+    '.oSfeeSfeeSffXXo',
+    '.ofSffSffSffSffXo',
+    '.oSSSmmmSSSXffXo',
+    '..oSSSSSSSSSXXo.',
+    '..HHHHTTTTHHHH.',
+    '.HHHHHTTTTHHHHH',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.oPoooPoooPoooPo',
+];
+
+const SETTLER_S_LONG_WALK_B = [
+    '....jjjjjjjj....',
+    '...jHHHHHHHHj...',
+    '..jHHHHHHHHHHj..',
+    '.jHHsssoosssHHj.',
+    '.jHHsfffsfffsHH.',
+    '.oSSfsSSSfsSffXo',
+    '.ofSfffSfffSffXo',
+    '.oSfeeSfeeSffXXo',
+    '.ofSffSffSffSffXo',
+    '.oSSSmmmSSSXffXo',
+    '..oSSSSSSSSSXXo.',
+    '..HHHHTTTTHHHH.',
+    '.HHHHHTTTTHHHHH',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.ooPoooPoooPoooP',
 ];
 
 // South walk B — left leg forward, right leg back
@@ -355,11 +413,61 @@ function makeGrassVariant(seed: number): string[] {
     return rows;
 }
 
+// GRASS-with-decorations — 3 variants: flower, rock, mushroom. Each overlays
+// a small decoration on the base grass pattern, placed at a seeded position.
+function makeDecoratedGrass(seed: number, deco: 'flower' | 'rock' | 'mushroom'): string[] {
+    const rows = makeGrassVariant(seed);
+    // Pick a small cluster of pixels for the decoration (avoid edges).
+    const h = ((seed * 246343) ^ 0xbeef) >>> 0;
+    const cx = 4 + (h % 8); // 4..11
+    const cy = 4 + ((h >>> 4) % 8);
+    if (deco === 'flower')
+    {
+        // tiny pink/yellow flower
+        rows[cy]   = rows[cy].slice(0, cx)   + 'p' + rows[cy].slice(cx + 1);
+        rows[cy-1] = rows[cy-1].slice(0, cx) + 'y' + rows[cy-1].slice(cx + 1);
+        rows[cy+1] = rows[cy+1].slice(0, cx) + 'y' + rows[cy+1].slice(cx + 1);
+        rows[cy]   = rows[cy].slice(0, cx-1) + 'y' + rows[cy].slice(cx);
+        rows[cy]   = rows[cy].slice(0, cx+1) + 'y' + rows[cy].slice(cx + 2);
+    }
+    else if (deco === 'rock')
+    {
+        // 3x2 gray rock cluster
+        const placements: Array<[number, number, string]> = [
+            [0, 0, 'r'], [1, 0, 'r'], [2, 0, 'r'],
+            [0, 1, 'R'], [1, 1, 'R'], [2, 1, 'r'],
+        ];
+        for (const [dx, dy, ch] of placements)
+        {
+            const x = cx + dx;
+            const y = cy + dy;
+            if (x < 15 && y < 15 && x > 0 && y > 0)
+            {
+                rows[y] = rows[y].slice(0, x) + ch + rows[y].slice(x + 1);
+            }
+        }
+    }
+    else
+    {
+        // mushroom: red cap with white dots, brown stem
+        rows[cy]   = rows[cy].slice(0, cx-1) + 'M' + rows[cy].slice(cx);
+        rows[cy]   = rows[cy].slice(0, cx)   + 'M' + rows[cy].slice(cx + 1);
+        rows[cy]   = rows[cy].slice(0, cx+1) + 'M' + rows[cy].slice(cx + 2);
+        rows[cy+1] = rows[cy+1].slice(0, cx) + 'W' + rows[cy+1].slice(cx + 1);
+        rows[cy+2] = rows[cy+2].slice(0, cx) + 'k' + rows[cy+2].slice(cx + 1);
+        rows[cy+3] = rows[cy+3].slice(0, cx) + 'k' + rows[cy+3].slice(cx + 1);
+    }
+    return rows;
+}
+
 const GRASS_VARIANTS: string[][] = [
     makeGrassVariant(1),
     makeGrassVariant(2),
     makeGrassVariant(3),
     makeGrassVariant(4),
+    makeDecoratedGrass(101, 'flower'),
+    makeDecoratedGrass(202, 'rock'),
+    makeDecoratedGrass(303, 'mushroom'),
 ];
 
 // Dirt — base brown with cracks and small pebbles. Top highlight, bottom shadow,
@@ -556,6 +664,67 @@ const TILE_TREE: SpriteDef = {
     },
 };
 
+// Pine tree — tall triangular silhouette, darker overall.
+const TILE_TREE_PINE: SpriteDef = {
+    pixels: [
+        '..gg........gg.',
+        '......DD......',
+        '.....DhhD.....',
+        '....DhLLhD....',
+        '...DhLLLLhD...',
+        '...hLLMMMLhD..',
+        '..hLLMMDDLLD..',
+        '..LLMMDDDLLD..',
+        '.hLMMMDDDLLD...',
+        '.hLMDDDDLLD....',
+        '.hLMDDDLLD.....',
+        '.hLDDDLLD......',
+        '.hDDDDDD.......',
+        '...DDhDDD......',
+        '...HHHhH.......',
+        '..gg.......gg..',
+    ],
+    palette: {
+        '.': PALETTE.grassBase,
+        g: PALETTE.grassMid,
+        h: PALETTE.leafHi,
+        L: PALETTE.leafBase,
+        M: PALETTE.leafMid,
+        D: PALETTE.leafShd,
+        H: PALETTE.woodBase,
+    },
+};
+
+// Small bush — short round canopy, no trunk.
+const TILE_BUSH: SpriteDef = {
+    pixels: [
+        '..gg........gg.',
+        '..gDDhDDhDDg...',
+        '.gDLLLLLLLDDg..',
+        '.hLLMMMMMMLLDg.',
+        '.hLMMMMMMMMDD..',
+        '..LMMMMMMDD....',
+        '..hLMMMMDD.....',
+        '...hLMDD.......',
+        '...DDD.........',
+        '..gg........gg.',
+        '..gg........gg.',
+        '..gg........gg.',
+        '..gg........gg.',
+        '..gg........gg.',
+        '..gg........gg.',
+        '..gg........gg.',
+    ],
+    palette: {
+        '.': PALETTE.grassBase,
+        g: PALETTE.grassMid,
+        h: PALETTE.leafHi,
+        L: PALETTE.leafBase,
+        M: PALETTE.leafMid,
+        D: PALETTE.leafShd,
+    },
+};
+
 // Wall — masonry pattern with shaded mortar
 const TILE_WALL: SpriteDef = {
     pixels: [
@@ -689,6 +858,11 @@ export function registerAllPixelSprites(scene: Scene): void {
         { name: 'walk-a', pixels: SETTLER_S_WALK_A },
         { name: 'walk-b', pixels: SETTLER_S_WALK_B },
     ];
+    const longFrames: Array<{ name: string; pixels: string[] }> = [
+        { name: 'idle', pixels: SETTLER_S_LONG_IDLE },
+        { name: 'walk-a', pixels: SETTLER_S_LONG_WALK_A },
+        { name: 'walk-b', pixels: SETTLER_S_LONG_WALK_B },
+    ];
 
     for (const color of Object.keys(SETTLER_VARIANTS) as SettlerColor[]) {
         const palettes = buildSettlerPalettes(
@@ -698,6 +872,17 @@ export function registerAllPixelSprites(scene: Scene): void {
         for (const frame of frames) {
             const baseName = frame.name === 'idle' ? `settler-${color}` : `settler-${color}-${frame.name}`;
             registerPixelSprite(scene, baseName, {
+                pixels: frame.pixels,
+                palette: palettes,
+                transparentDot: true,
+            });
+        }
+        // Long-hair variant
+        for (const frame of longFrames) {
+            const baseName = `settler-${color}-long-${frame.name === 'idle' ? '' : frame.name}`;
+            const key = frame.name === 'idle' ? `settler-${color}-long` : `settler-${color}-long-${frame.name}`;
+            void baseName;
+            registerPixelSprite(scene, key, {
                 pixels: frame.pixels,
                 palette: palettes,
                 transparentDot: true,
@@ -716,6 +901,14 @@ export function registerAllPixelSprites(scene: Scene): void {
                 d: PALETTE.grassMid,
                 g: PALETTE.grassBase,
                 l: PALETTE.grassHi,
+                // Decoration keys for grass-with-* variants
+                p: '#f8d0e8', // flower pink
+                y: '#f8e838', // flower yellow center
+                r: '#5a5a5a', // rock shadow
+                R: '#7a7a7a', // rock highlight
+                M: '#c83028', // mushroom red cap
+                W: '#f8f8f8', // mushroom white dot
+                k: '#4a2a10', // mushroom stem
             },
         });
     }
@@ -781,6 +974,8 @@ export function registerAllPixelSprites(scene: Scene): void {
     }
 
     registerPixelSprite(scene, 'tile-tree', TILE_TREE);
+    registerPixelSprite(scene, 'tile-tree-pine', TILE_TREE_PINE);
+    registerPixelSprite(scene, 'tile-bush', TILE_BUSH);
     registerPixelSprite(scene, 'tile-wall', TILE_WALL);
     registerPixelSprite(scene, 'tile-floor', TILE_FLOOR);
     registerPixelSprite(scene, 'tile-tilled', TILE_TILLED);
