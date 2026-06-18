@@ -206,6 +206,13 @@ const PANTS: Record<string, string> = { q: '#7a6238', P: PALETTE.earthMid, p: PA
 
 const OUTFIT: Record<string, string> = { o: PALETTE.skinOut };
 
+// Hat palette — wide-brim felt hat. Three tones for depth.
+const HAT: Record<string, string> = {
+    W: '#7a4a26',  // hat brim highlight
+    K: '#4a2a10',  // hat body
+    M: '#2a1408',  // hat shadow (reserved)
+};
+
 // Common base — every settler shares skin, eyes, boots, pants, belt, outline.
 const SETTLER_BASE_PALETTE: Record<string, string> = {
     ...SKIN_PALETTE,
@@ -214,6 +221,7 @@ const SETTLER_BASE_PALETTE: Record<string, string> = {
     ...EYES_MOUTH,
     ...PANTS,
     ...OUTFIT,
+    ...HAT,
 };
 
 function buildSettlerPalettes(hairPalette: Record<string, string>, shirt: Record<string, string>): Record<string, string> {
@@ -350,6 +358,123 @@ const SETTLER_S_LONG_WALK_B = [
     '.ouTuTuuuTuuuTut',
     '.oPPoPPoPPoPPoPo',
     '.ooPoooPoooPoooP',
+];
+
+// Bald variants — no top hair, just sides.
+const SETTLER_S_BALD_IDLE = [
+    '................',
+    '................',
+    '...oSSSSSSSo...',
+    '..oSSffSffSSo..',
+    '.oSSffSffSffSSo',
+    '.oSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSSSmmmSSSXffo',
+    '..oSSSSSSSSSXXo.',
+    '..ouuuTTuuuuutX.',
+    '.ouuuuTTuuuuuttX',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.oPo.oPo.oPo.oPo',
+];
+
+const SETTLER_S_BALD_WALK_A = [
+    '................',
+    '................',
+    '...oSSSSSSSo...',
+    '..oSSffSffSSo..',
+    '.oSSffSffSffSSo',
+    '.oSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSSSmmmSSSXffo',
+    '..oSSSSSSSSSXXo.',
+    '..ouuuTTuuuuutX.',
+    '.ouuuuTTuuuuuttX',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.oPoooPoooPoooPo',
+];
+
+const SETTLER_S_BALD_WALK_B = [
+    '................',
+    '................',
+    '...oSSSSSSSo...',
+    '..oSSffSffSSo..',
+    '.oSSffSffSffSSo',
+    '.oSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSSSmmmSSSXffo',
+    '..oSSSSSSSSSXXo.',
+    '..ouuuTTuuuuutX.',
+    '.ouuuuTTuuuuuttX',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.ooPoooPoooPoooP',
+];
+
+// Hat variants — wide-brim hat covers the top of the head. Uses W/K/M
+// (uniquely for hat) so the palette is unambiguous.
+const SETTLER_S_HAT_IDLE = [
+    '................',
+    '...WWWWWWWWWW...',
+    '..WKkkkkkkkkKW..',
+    '.WKkSffSffSffkKW',
+    '.oSSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSfeeSfeeSffXXo',
+    '.ofSffSffSffSffo',
+    '.oSSSmmmSSSXffXo',
+    '..oSSSSSSSSSXXo.',
+    '..ouuuTTuuuuutX.',
+    '.ouuuuTTuuuuuttX',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.oPo.oPo.oPo.oPo',
+    '................',
+];
+
+const SETTLER_S_HAT_WALK_A = [
+    '................',
+    '...WWWWWWWWWW...',
+    '..WKkkkkkkkkKW..',
+    '.WKkSffSffSffkKW',
+    '.oSSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSfeeSfeeSffXXo',
+    '.ofSffSffSffSffo',
+    '.oSSSmmmSSSXffXo',
+    '..oSSSSSSSSSXXo.',
+    '..ouuuTTuuuuutX.',
+    '.ouuuuTTuuuuuttX',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.oPoooPoooPoooPo',
+    '................',
+];
+
+const SETTLER_S_HAT_WALK_B = [
+    '................',
+    '...WWWWWWWWWW...',
+    '..WKkkkkkkkkKW..',
+    '.WKkSffSffSffkKW',
+    '.oSSfeeSfeeSffXo',
+    '.ofSffSffSffSffo',
+    '.oSfeeSfeeSffXXo',
+    '.ofSffSffSffSffo',
+    '.oSSSmmmSSSXffXo',
+    '..oSSSSSSSSSXXo.',
+    '..ouuuTTuuuuutX.',
+    '.ouuuuTTuuuuuttX',
+    '.ouTuTuuuTuuuTut',
+    '.oPPoPPoPPoPPoPo',
+    '.ooPoooPoooPoooP',
+    '................',
 ];
 
 // South walk B — left leg forward, right leg back
@@ -725,6 +850,63 @@ const TILE_BUSH: SpriteDef = {
     },
 };
 
+// Sand-water edge — sand on top half, water on bottom half. Used at coastlines.
+const TILE_SAND_WATER: SpriteDef = {
+    pixels: [
+        '..hh..........',
+        '..h.h.........',
+        '...h..........',
+        '....h.........',
+        '.....h........',
+        '......h.......',
+        '.......h......',
+        '........h.....',
+        '.........h....',
+        '..........b...',
+        '...........b..',
+        '............b.',
+        '...........bb.',
+        '..d........bb.',
+        '.dd..........b',
+        'dd............',
+    ],
+    palette: {
+        '.': PALETTE.sandBase,
+        'h': PALETTE.sandHi,
+        'd': PALETTE.sandShd,
+        b: PALETTE.waterBase,
+    },
+};
+
+// Grass-sand edge — grass on top, sand on bottom, with small grass tufts
+// in the transition.
+const TILE_GRASS_SAND: SpriteDef = {
+    pixels: [
+        'gg............',
+        '.gg...........',
+        '..gg..........',
+        '...gg.........',
+        '....gg........',
+        '.....gg.......',
+        '......gg......',
+        '.......gg.....',
+        '........gg....',
+        '.........g....',
+        '..........d...',
+        '...........d..',
+        '..h.........d.',
+        '............d.',
+        '..........h...',
+        '..............',
+    ],
+    palette: {
+        '.': PALETTE.grassBase,
+        g: PALETTE.grassMid,
+        'd': PALETTE.sandShd,
+        'h': PALETTE.sandHi,
+    },
+};
+
 // Wall — masonry pattern with shaded mortar
 const TILE_WALL: SpriteDef = {
     pixels: [
@@ -863,6 +1045,16 @@ export function registerAllPixelSprites(scene: Scene): void {
         { name: 'walk-a', pixels: SETTLER_S_LONG_WALK_A },
         { name: 'walk-b', pixels: SETTLER_S_LONG_WALK_B },
     ];
+    const baldFrames: Array<{ name: string; pixels: string[] }> = [
+        { name: 'idle', pixels: SETTLER_S_BALD_IDLE },
+        { name: 'walk-a', pixels: SETTLER_S_BALD_WALK_A },
+        { name: 'walk-b', pixels: SETTLER_S_BALD_WALK_B },
+    ];
+    const hatFrames: Array<{ name: string; pixels: string[] }> = [
+        { name: 'idle', pixels: SETTLER_S_HAT_IDLE },
+        { name: 'walk-a', pixels: SETTLER_S_HAT_WALK_A },
+        { name: 'walk-b', pixels: SETTLER_S_HAT_WALK_B },
+    ];
 
     for (const color of Object.keys(SETTLER_VARIANTS) as SettlerColor[]) {
         const palettes = buildSettlerPalettes(
@@ -877,16 +1069,21 @@ export function registerAllPixelSprites(scene: Scene): void {
                 transparentDot: true,
             });
         }
-        // Long-hair variant
-        for (const frame of longFrames) {
-            const baseName = `settler-${color}-long-${frame.name === 'idle' ? '' : frame.name}`;
-            const key = frame.name === 'idle' ? `settler-${color}-long` : `settler-${color}-long-${frame.name}`;
-            void baseName;
-            registerPixelSprite(scene, key, {
-                pixels: frame.pixels,
-                palette: palettes,
-                transparentDot: true,
-            });
+        for (const [suffix, frameList] of [
+            ['long', longFrames],
+            ['bald', baldFrames],
+            ['hat', hatFrames],
+        ] as const)
+        {
+            for (const frame of frameList)
+            {
+                const key = frame.name === 'idle' ? `settler-${color}-${suffix}` : `settler-${color}-${suffix}-${frame.name}`;
+                registerPixelSprite(scene, key, {
+                    pixels: frame.pixels,
+                    palette: palettes,
+                    transparentDot: true,
+                });
+            }
         }
     }
 
@@ -976,6 +1173,8 @@ export function registerAllPixelSprites(scene: Scene): void {
     registerPixelSprite(scene, 'tile-tree', TILE_TREE);
     registerPixelSprite(scene, 'tile-tree-pine', TILE_TREE_PINE);
     registerPixelSprite(scene, 'tile-bush', TILE_BUSH);
+    registerPixelSprite(scene, 'tile-sand-water', TILE_SAND_WATER);
+    registerPixelSprite(scene, 'tile-grass-sand', TILE_GRASS_SAND);
     registerPixelSprite(scene, 'tile-wall', TILE_WALL);
     registerPixelSprite(scene, 'tile-floor', TILE_FLOOR);
     registerPixelSprite(scene, 'tile-tilled', TILE_TILLED);
@@ -1018,6 +1217,10 @@ export const TILE_TEXTURE_KEYS: Record<number, string> = {
     [TileType.Water]: 'tile-water-0',
     [TileType.Sand]: 'tile-sand-0',
     [TileType.Tree]: 'tile-tree',
+    [TileType.TreePine]: 'tile-tree-pine',
+    [TileType.TreeBush]: 'tile-bush',
+    [TileType.SandWater]: 'tile-sand-water',
+    [TileType.GrassSand]: 'tile-grass-sand',
     [TileType.Wall]: 'tile-wall',
     [TileType.Floor]: 'tile-floor',
     [TileType.TilledSoil]: 'tile-tilled',

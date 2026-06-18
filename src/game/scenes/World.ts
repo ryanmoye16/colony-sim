@@ -106,11 +106,14 @@ export class World extends Scene
             this.world.findWalkableAt(96, 96),
             this.world.findWalkableAt(160, 160),
         ];
-        const settlerTextures = [
-            'settler-red-long',
-            'settler-blue',
-            'settler-green',
-        ];
+        // Randomize hair style + color for each initial settler.
+        const colors = ['red', 'blue', 'green', 'orange', 'purple'];
+        const styles = ['', '-long', '-bald', '-hat'];
+        const settlerTextures = spawnPoints.map((_, i) => {
+            const color = colors[i % colors.length];
+            const style = styles[i % styles.length];
+            return `settler-${color}${style}`;
+        });
         for (let i = 0; i < spawnPoints.length; i++)
         {
             createSettler(
