@@ -9,23 +9,24 @@ const MINIMAP_SIZE = 180;
 
 const TILE_COLORS: Record<number, string> = {
     [TileType.Empty]: '#0a0a0e',
-    [TileType.Dirt]: '#6a4a2a',
-    [TileType.Grass]: '#5a9b3a',
-    [TileType.Stone]: '#808080',
-    [TileType.Water]: '#2f5b8a',
-    [TileType.Sand]: '#e8c878',
-    [TileType.Tree]: '#1a3a1a',
-    [TileType.Wall]: '#444444',
-    [TileType.Floor]: '#a08060',
-    [TileType.TilledSoil]: '#5a3018',
-    [TileType.Snow]: '#f0f0f8',
+    [TileType.Dirt]: '#7a5a3a',
+    [TileType.Grass]: '#74a838',
+    [TileType.Stone]: '#909098',
+    [TileType.Water]: '#5890c8',
+    [TileType.Sand]: '#dcc078',
+    [TileType.Tree]: '#244e0c',
+    [TileType.Wall]: '#52525a',
+    [TileType.Floor]: '#9a6234',
+    [TileType.TilledSoil]: '#5a3a20',
+    [TileType.Snow]: '#e8ecf4',
 };
 
 const SHIRT_COLORS: Record<string, string> = {
-    'settler-red': '#cc4040',
-    'settler-blue': '#4060cc',
-    'settler-green': '#40a060',
-    'settler-orange': '#cc8840',
+    'settler-red': '#cc3838',
+    'settler-blue': '#3860c8',
+    'settler-green': '#389048',
+    'settler-orange': '#cc7838',
+    'settler-purple': '#7838a8',
 };
 
 export class MiniMap

@@ -12,7 +12,8 @@ dist
 dist-ssr
 *.local
 
-# Test/playwright artifacts
+# Loose test screenshots / artifacts
+/[0-9]*.png
 .playwright-mcp
 
 # Editor directories and files

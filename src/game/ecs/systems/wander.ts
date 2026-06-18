@@ -1,7 +1,7 @@
 import type { System } from './index';
 import type { ECSWorld } from '../world';
 import { Position, AI, Needs, Inventory } from '../components';
-import type { PositionData, AIData, NeedsData, InventoryData } from '../components';
+import type { Facing, PositionData, AIData, NeedsData, InventoryData } from '../components';
 import { isWalkable, TileType } from '../../world/tile';
 import type { World as WorldModel } from '../../world/world';
 import type { JobQueue } from '../../jobs/job-queue';
@@ -11,6 +11,14 @@ import type { LifeSystem } from './life';
 const DIRS: ReadonlyArray<readonly [number, number]> = [
     [-1, 0], [1, 0], [0, -1], [0, 1],
 ];
+
+function dirToFacing (dx: number, dy: number): Facing
+{
+    if (dx < 0) return 'w';
+    if (dx > 0) return 'e';
+    if (dy < 0) return 'n';
+    return 's';
+}
 
 const WANDER_MIN_DELAY = 30;
 const WANDER_DELAY_RANGE = 60;
@@ -54,6 +62,8 @@ export class WanderSystem implements System
         if (!this.worldModel.inBounds(ntx, nty)) return;
         if (!isWalkable(this.worldModel.getTile(ntx, nty))) return;
 
+        // Update facing from the move direction (Cardinal → Facing string).
+        ai.facing = dirToFacing(dir[0], dir[1]);
         pos.tx = ntx;
         pos.ty = nty;
         ai.nextMoveAt = tick + WANDER_MIN_DELAY + Math.floor(this.rng() * WANDER_DELAY_RANGE);
@@ -87,6 +97,7 @@ export class WanderSystem implements System
         }
 
         const next = ai.path[ai.pathIndex];
+        ai.facing = dirToFacing(next.tx - pos.tx, next.ty - pos.ty);
         pos.tx = next.tx;
         pos.ty = next.ty;
         ai.pathIndex++;
@@ -160,6 +171,7 @@ export class WanderSystem implements System
         }
 
         const next = ai.path[ai.pathIndex];
+        ai.facing = dirToFacing(next.tx - pos.tx, next.ty - pos.ty);
         pos.tx = next.tx;
         pos.ty = next.ty;
         ai.pathIndex++;
@@ -256,6 +268,7 @@ export class WanderSystem implements System
         }
 
         const next = ai.path[ai.pathIndex];
+        ai.facing = dirToFacing(next.tx - pos.tx, next.ty - pos.ty);
         pos.tx = next.tx;
         pos.ty = next.ty;
         ai.pathIndex++;

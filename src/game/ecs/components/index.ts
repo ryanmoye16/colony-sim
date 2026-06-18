@@ -12,6 +12,8 @@ export const Life = 'Life';
 export const Relationship = 'Relationship';
 export const Path = 'Path';
 
+export type Facing = 'n' | 'e' | 's' | 'w';
+
 export interface AIData
 {
     state: 'wandering' | 'seeking_food' | 'seeking_social' | 'working';
@@ -20,6 +22,8 @@ export interface AIData
     pathIndex: number;
     jobId?: number;
     jobPhase?: 'go_to_target' | 'go_to_target2';
+    /** Last direction of movement; used by render-sync to pick sprite frame. */
+    facing: Facing;
 }
 
 export interface PositionData
