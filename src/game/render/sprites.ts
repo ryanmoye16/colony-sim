@@ -314,196 +314,6 @@ const SETTLER_S_WALK_B = [
     '.ooPoooPoooPoooP', // legs shifted other way
 ];
 
-// South carrying — holding item in front (hands visible)
-const SETTLER_S_CARRY = [
-    '....jjjjjjjj....',
-    '...jHHHHHHHHj...',
-    '..jHHHHHHHHHHj..',
-    '.jHHsssoosssHHj.',
-    '.jHHsfffsfffsHH.',
-    '.oSSfsSSSfsSffXo',
-    '.ofSfffSfffSffXo',
-    '.oSfeeSfeeSffXXo',
-    '.ofSffSffSffSffXo',
-    '.oSSSmmmSSSXffXo',
-    '..oSSSSSSSSSXXo.',
-    '..ouuuTTuuuuutX.',
-    '.oSuuuTTuuuuutSX',
-    '.ouTTuuuTuuuTTtX', // arms wrapped around item
-    '.oPPoPpoPoPpoPPo',
-    '.oPo.oPo.oPo.oPo',
-];
-
-// EAST (right-facing profile) — idle
-const SETTLER_E_IDLE = [
-    '....jjjjjjj.....',
-    '...jHHHHHHHj....',
-    '..jHHHHHHHHHj...',
-    '.jHHsssoosssHHj.',
-    '.jHHsfffsfffsHH.',
-    '.oSfffeSfffSffXo', // eye on the visible side
-    '.ofSSSSSfffSffXo',
-    '.oSSmmmSSSXffXo',
-    '..oSSSSSSSSSXXo.',
-    '..ouuuTTuuuutX..',
-    '.ouuuuTTuuuuttX.',
-    '.ouTuTuuuTuuuTut',
-    '.oTuTuuTuTuuTut.',
-    '.oPPoPPoPPoPPoPo',
-    '.oPo.oPo.oPo.oPo',
-    '.oPo.oPo.oPo.oPo',
-];
-
-// East walk A — leading leg forward
-const SETTLER_E_WALK_A = [
-    '....jjjjjjj.....',
-    '...jHHHHHHHj....',
-    '..jHHHHHHHHHj...',
-    '.jHHsssoosssHHj.',
-    '.jHHsfffsfffsHH.',
-    '.oSfffeSfffSffXo',
-    '.ofSSSSSfffSffXo',
-    '.oSSmmmSSSXffXo',
-    '..oSSSSSSSSSXXo.',
-    '..ouuuTTuuuutX..',
-    '.ouuuuTTuuuuttX.',
-    '.ouTuTuuuTuuuTut',
-    '.oTuTuuTuTuuTut.',
-    '.oPPoPPoPPoPPoPo',
-    '.oPoooPoooPoooPo', // shifted
-    '.oPoooPoooPoooPo',
-];
-
-// East walk B
-const SETTLER_E_WALK_B = [
-    '....jjjjjjj.....',
-    '...jHHHHHHHj....',
-    '..jHHHHHHHHHj...',
-    '.jHHsssoosssHHj.',
-    '.jHHsfffsfffsHH.',
-    '.oSfffeSfffSffXo',
-    '.ofSSSSSfffSffXo',
-    '.oSSmmmSSSXffXo',
-    '..oSSSSSSSSSXXo.',
-    '..ouuuTTuuuutX..',
-    '.ouuuuTTuuuuttX.',
-    '.ouTuTuuuTuuuTut',
-    '.oTuTuuTuTuuTut.',
-    '.oPPoPPoPPoPPoPo',
-    '.ooPoooPoooPoooP',
-    '.ooPoooPoooPoooP',
-];
-
-// East carrying
-const SETTLER_E_CARRY = [
-    '....jjjjjjj.....',
-    '...jHHHHHHHj....',
-    '..jHHHHHHHHHj...',
-    '.jHHsssoosssHHj.',
-    '.jHHsfffsfffsHH.',
-    '.oSfffeSfffSffXo',
-    '.ofSSSSSfffSffXo',
-    '.oSSmmmSSSXffXo',
-    '..oSSSSSSSSSXXo.',
-    '..ouuuTTuuuutX..',
-    '..uuuTTTTtuuuSX.', // arm holding item in front
-    '.ouTuTuuuTuuuTut',
-    '.oTuTuuTuTuuTut.',
-    '.oPPoPPoPPoPPoPo',
-    '.oPo.oPo.oPo.oPo',
-    '.oPo.oPo.oPo.oPo',
-];
-
-// NORTH (back of head) — idle
-const SETTLER_N_IDLE = [
-    '....jjjjjjjj....',
-    '...jHHHHHHHHj...',
-    '..jHHHHHHHHHHj..',
-    '.jHHHHHHHHHHHHj.',
-    '.jHHsHHHssHHsHHj.', // back of head detail
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '..oHHHHHHHHHHXo.',
-    '..ouuuTTuuuuutX.',
-    '.ouuuuTTuuuuuttX',
-    '.ouTuTuuuTuuuTut',
-    '.oPPoPPoPPoPPoPo',
-    '.oPo.oPo.oPo.oPo',
-];
-
-const SETTLER_N_WALK_A = [
-    '....jjjjjjjj....',
-    '...jHHHHHHHHj...',
-    '..jHHHHHHHHHHj..',
-    '.jHHHHHHHHHHHHj.',
-    '.jHHsHHHssHHsHHj.',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '..oHHHHHHHHHHXo.',
-    '..ouuuTTuuuuutX.',
-    '.ouuuuTTuuuuuttX',
-    '.ouTuTuuuTuuuTut',
-    '.oPPoPPoPPoPPoPo',
-    '.oPoooPoooPoooPo',
-];
-
-const SETTLER_N_WALK_B = [
-    '....jjjjjjjj....',
-    '...jHHHHHHHHj...',
-    '..jHHHHHHHHHHj..',
-    '.jHHHHHHHHHHHHj.',
-    '.jHHsHHHssHHsHHj.',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '..oHHHHHHHHHHXo.',
-    '..ouuuTTuuuuutX.',
-    '.ouuuuTTuuuuuttX',
-    '.ouTuTuuuTuuuTut',
-    '.oPPoPPoPPoPPoPo',
-    '.ooPoooPoooPoooP',
-];
-
-const SETTLER_N_CARRY = [
-    '....jjjjjjjj....',
-    '...jHHHHHHHHj...',
-    '..jHHHHHHHHHHj..',
-    '.jHHHHHHHHHHHHj.',
-    '.jHHsHHHssHHsHHj.',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '.oHHHHHHHHHHHHXo',
-    '..oHHHHHHHHHHXo.',
-    '..ouuuTTuuuuutX.',
-    '..uuuTTTTtuuuSX.',
-    '.ouTuTuuuTuuuTut',
-    '.oPPoPPoPPoPPoPo',
-    '.oPo.oPo.oPo.oPo',
-];
-
-// WEST (left-facing profile) — mirrored from EAST
-function mirrorRow(row: string): string {
-    return row.split('').reverse().join('');
-}
-function mirrorSprite(rows: string[]): string[] {
-    return rows.map(mirrorRow);
-}
-
-const SETTLER_W_IDLE = mirrorSprite(SETTLER_E_IDLE);
-const SETTLER_W_WALK_A = mirrorSprite(SETTLER_E_WALK_A);
-const SETTLER_W_WALK_B = mirrorSprite(SETTLER_E_WALK_B);
-const SETTLER_W_CARRY = mirrorSprite(SETTLER_E_CARRY);
-
 // -----------------------------------------------------------------------------
 // TILE SPRITES — 16x16
 // -----------------------------------------------------------------------------
@@ -518,22 +328,21 @@ const TILE_EMPTY: SpriteDef = {
 };
 
 // GRASS — 4 variants for visual variety when tiled.
-// Each has scattered grass blades on a solid grass base, with light edges top/left
-// and shadow edge bottom/right for "raised tile" depth.
+// Each has scattered grass blades on a solid grass base. Light top edge and
+// shadow bottom edge give a subtle "raised tile" feel. Left/right edges use
+// the same mid color so adjacent tiles blend without harsh vertical lines.
 function makeGrassVariant(seed: number): string[] {
     const rows: string[] = [];
     for (let y = 0; y < 16; y++) {
         let row = '';
         for (let x = 0; x < 16; x++) {
-            // Edge shading — light top/left, shadow bottom/right
             const isTop = y === 0;
             const isBottom = y === 15;
             const isLeft = x === 0;
             const isRight = x === 15;
             if (isTop) { row += 'l'; continue; }
             if (isBottom) { row += 'd'; continue; }
-            if (isLeft) { row += 'g'; continue; }
-            if (isRight) { row += 'd'; continue; }
+            if (isLeft || isRight) { row += 'g'; continue; }
             const h = ((x * 73856093) ^ (y * 19349663) ^ (seed * 83492791)) >>> 0;
             const v = h % 100;
             if (v < 60) row += '.';        // base grass
@@ -553,7 +362,8 @@ const GRASS_VARIANTS: string[][] = [
     makeGrassVariant(4),
 ];
 
-// Dirt — base brown with cracks and small pebbles, with edge shading
+// Dirt — base brown with cracks and small pebbles. Top highlight, bottom shadow,
+// left/right mid so adjacent tiles blend without harsh borders.
 function makeDirtVariant(seed: number): string[] {
     const rows: string[] = [];
     for (let y = 0; y < 16; y++) {
@@ -565,8 +375,7 @@ function makeDirtVariant(seed: number): string[] {
             const isRight = x === 15;
             if (isTop) { row += 'h'; continue; }
             if (isBottom) { row += 'd'; continue; }
-            if (isLeft) { row += 'h'; continue; }
-            if (isRight) { row += 'd'; continue; }
+            if (isLeft || isRight) { row += '.'; continue; }
             const h = ((x * 73856093) ^ (y * 19349663) ^ (seed * 83492791)) >>> 0;
             const v = h % 100;
             if (v < 55) row += '.';          // base dirt
@@ -581,7 +390,8 @@ function makeDirtVariant(seed: number): string[] {
 
 const DIRT_VARIANTS: string[][] = [makeDirtVariant(1), makeDirtVariant(2)];
 
-// Stone — multi-tone with chips and edge shading
+// Stone — multi-tone with chips. Top highlight, bottom outline, left/right mid
+// (uses stoneShd for natural shadow band) so adjacent tiles blend.
 function makeStoneVariant(seed: number): string[] {
     const rows: string[] = [];
     for (let y = 0; y < 16; y++) {
@@ -593,8 +403,7 @@ function makeStoneVariant(seed: number): string[] {
             const isRight = x === 15;
             if (isTop) { row += 'h'; continue; }
             if (isBottom) { row += 'o'; continue; }
-            if (isLeft) { row += 'h'; continue; }
-            if (isRight) { row += 'o'; continue; }
+            if (isLeft || isRight) { row += 'd'; continue; }
             const h = ((x * 73856093) ^ (y * 19349663) ^ (seed * 83492791)) >>> 0;
             const v = h % 100;
             if (v < 50) row += '.';          // base stone
@@ -610,7 +419,8 @@ function makeStoneVariant(seed: number): string[] {
 
 const STONE_VARIANTS: string[][] = [makeStoneVariant(1), makeStoneVariant(2), makeStoneVariant(3)];
 
-// Water — base blue with wave highlights and depth shadows, edge shading
+// Water — base blue with wave highlights and depth shadows. Top highlight, bottom
+// depth shadow, left/right mid so adjacent tiles blend smoothly.
 function makeWaterVariant(seed: number): string[] {
     const rows: string[] = [];
     for (let y = 0; y < 16; y++) {
@@ -622,8 +432,7 @@ function makeWaterVariant(seed: number): string[] {
             const isRight = x === 15;
             if (isTop) { row += 'h'; continue; }
             if (isBottom) { row += 'd'; continue; }
-            if (isLeft) { row += 'b'; continue; }
-            if (isRight) { row += 'd'; continue; }
+            if (isLeft || isRight) { row += 'b'; continue; }
             const h = ((x * 73856093) ^ (y * 19349663) ^ (seed * 83492791)) >>> 0;
             const v = h % 100;
             if (v < 45) row += '.';          // base water
@@ -638,7 +447,8 @@ function makeWaterVariant(seed: number): string[] {
 
 const WATER_VARIANTS: string[][] = [makeWaterVariant(1), makeWaterVariant(2)];
 
-// Sand — base tan with grain dots, shadow specks, edge shading
+// Sand — base tan with grain dots, shadow specks. Top highlight, bottom shadow,
+// left/right mid so adjacent tiles blend.
 function makeSandVariant(seed: number): string[] {
     const rows: string[] = [];
     for (let y = 0; y < 16; y++) {
@@ -650,8 +460,7 @@ function makeSandVariant(seed: number): string[] {
             const isRight = x === 15;
             if (isTop) { row += 'h'; continue; }
             if (isBottom) { row += 'd'; continue; }
-            if (isLeft) { row += 'h'; continue; }
-            if (isRight) { row += 'd'; continue; }
+            if (isLeft || isRight) { row += '.'; continue; }
             const h = ((x * 73856093) ^ (y * 19349663) ^ (seed * 83492791)) >>> 0;
             const v = h % 100;
             if (v < 65) row += '.';          // base sand
@@ -872,51 +681,27 @@ const ITEM_WOOD: SpriteDef = {
 // -----------------------------------------------------------------------------
 
 export function registerAllPixelSprites(scene: Scene): void {
-    // Settlers — 5 colors × 4 directions × 4 frames = 80 textures
-    const directions = ['s', 'e', 'n', 'w'] as const;
-    const frames = ['idle', 'walk-a', 'walk-b', 'carry'] as const;
-    const settlerSprites: Record<string, string[]> = {
-        s: { idle: SETTLER_S_IDLE, 'walk-a': SETTLER_S_WALK_A, 'walk-b': SETTLER_S_WALK_B, carry: SETTLER_S_CARRY } as unknown as string[],
-        e: { idle: SETTLER_E_IDLE, 'walk-a': SETTLER_E_WALK_A, 'walk-b': SETTLER_E_WALK_B, carry: SETTLER_E_CARRY } as unknown as string[],
-        n: { idle: SETTLER_N_IDLE, 'walk-a': SETTLER_N_WALK_A, 'walk-b': SETTLER_N_WALK_B, carry: SETTLER_N_CARRY } as unknown as string[],
-        w: { idle: SETTLER_W_IDLE, 'walk-a': SETTLER_W_WALK_A, 'walk-b': SETTLER_W_WALK_B, carry: SETTLER_W_CARRY } as unknown as string[],
-    } as unknown as Record<string, string[]>;
+    // Settlers — 5 colors × 3 frames (idle / walk-a / walk-b) = 15 textures.
+    // Single direction: at this sprite scale (16x16 displayed at ~0.95×tile),
+    // direction isn't visible to the player.
+    const frames: Array<{ name: string; pixels: string[] }> = [
+        { name: 'idle', pixels: SETTLER_S_IDLE },
+        { name: 'walk-a', pixels: SETTLER_S_WALK_A },
+        { name: 'walk-b', pixels: SETTLER_S_WALK_B },
+    ];
 
     for (const color of Object.keys(SETTLER_VARIANTS) as SettlerColor[]) {
         const palettes = buildSettlerPalettes(
             SETTLER_VARIANTS[color].hair,
             SETTLER_VARIANTS[color].shirt,
         );
-        for (const dir of directions) {
-            const dirSprites = settlerSprites[dir] as unknown as Record<string, string[]>;
-            for (const frame of frames) {
-                const pixels = dirSprites[frame];
-                const key = `settler-${color}-${dir}-${frame}`;
-                registerPixelSprite(scene, key, {
-                    pixels,
-                    palette: palettes,
-                    transparentDot: true,
-                });
-            }
-            // Backward-compat aliases — old code looks up `settler-red`, `settler-red-walk-a`, etc.
-            // Map to south-facing idle / walk-a / walk-b so existing render-sync still works.
-            if (dir === 's') {
-                registerPixelSprite(scene, `settler-${color}`, {
-                    pixels: dirSprites.idle,
-                    palette: palettes,
-                    transparentDot: true,
-                });
-                registerPixelSprite(scene, `settler-${color}-walk-a`, {
-                    pixels: dirSprites['walk-a'],
-                    palette: palettes,
-                    transparentDot: true,
-                });
-                registerPixelSprite(scene, `settler-${color}-walk-b`, {
-                    pixels: dirSprites['walk-b'],
-                    palette: palettes,
-                    transparentDot: true,
-                });
-            }
+        for (const frame of frames) {
+            const baseName = frame.name === 'idle' ? `settler-${color}` : `settler-${color}-${frame.name}`;
+            registerPixelSprite(scene, baseName, {
+                pixels: frame.pixels,
+                palette: palettes,
+                transparentDot: true,
+            });
         }
     }
 

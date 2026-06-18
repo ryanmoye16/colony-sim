@@ -31,7 +31,7 @@ export function createSettler (
     const render: RenderData = { size: TILE_SIZE, gameObject: sprite, textureKey };
     ecs.addComponent(id, Render, render);
 
-    const ai: AIData = { state: 'wandering', nextMoveAt: 0, path: null, pathIndex: 0, facing: 's' };
+    const ai: AIData = { state: 'wandering', nextMoveAt: 0, path: null, pathIndex: 0 };
     ecs.addComponent(id, AI, ai);
 
     const needs: NeedsData = { hunger: 1.0, social: 1.0 };
