@@ -40,18 +40,22 @@ export interface PointLightSpec
     radius: number;     // px
     color: number;      // 0xRRGGBB
     intensity: number;  // 0..1, peak alpha multiplier
+    flicker?: boolean;  // true for fires; lantern/ambient lights stay steady
 }
 
 interface LightEntry
 {
     spec: PointLightSpec;
     sprite: Phaser.GameObjects.Image;
+    phase: number;      // per-light noise offset so flames don't pulse in sync
+    baseDiameter: number;
 }
 
 export class PointLights
 {
     private readonly lights: LightEntry[] = [];
     private hourlyBoost: number = 1.0;
+    private elapsedMs: number = 0;
 
     constructor (scene: Scene, specs: PointLightSpec[])
     {
@@ -69,41 +73,63 @@ export class PointLights
             sprite.setBlendMode(BlendModes.SCREEN);
             sprite.setAlpha(spec.intensity);
             sprite.setTint(spec.color).setTintMode(TintModes.FILL);
-            this.lights.push({ spec, sprite });
+            // Deterministic phase per light so flames don't beat in unison.
+            // Hash spec coords into [0, 2π) — simple and good enough.
+            const phase = ((spec.tx * 92821 + spec.ty * 689287) % 1000) / 1000 * Math.PI * 2;
+            this.lights.push({ spec, sprite, phase, baseDiameter: spec.radius * 2 });
         }
     }
 
     /**
      * Set the brightness multiplier from the time-of-day system. Caller passes
      * a value 0..1: 1 at midnight, ~0.25 at midday, smoothly interpolated.
-     * We feed each light's base alpha through this multiplier so the same
-     * fire that glows brightly at 02:00 dims to a flicker at 14:00.
+     * The flicker pass in update() modulates on top of this base alpha so
+     * dim-by-day fires still breathe — just at a lower amplitude.
      */
     setHourlyBoost (boost: number): void
     {
         this.hourlyBoost = Clamp(boost, 0, 1);
-        for (const { spec, sprite } of this.lights)
+        for (const entry of this.lights)
         {
-            sprite.setAlpha(spec.intensity * this.hourlyBoost);
+            entry.sprite.setAlpha(entry.spec.intensity * this.hourlyBoost);
         }
     }
 
     /**
-     * Cull lights whose center is far outside the camera viewport — saves
-     * draw calls when the player is on the opposite side of the map.
+     * Cull lights whose center is far outside the camera viewport, and
+     * apply fire flicker for any light marked spec.flicker = true. Flicker
+     * is two interfering sines at different frequencies + per-light phase
+     * — cheap (~6 mults/frame/light), and produces a believable "breathing"
+     * amplitude instead of the metronome of a single sine.
      */
-    update (cam: Cameras.Scene2D.Camera): void
+    update (cam: Cameras.Scene2D.Camera, deltaMs: number): void
     {
+        this.elapsedMs += deltaMs;
+        const t = this.elapsedMs / 1000;
+
         const view = cam.worldView;
         const margin = 96; // px of grace so lights don't pop in/out at the edge
         const minX = view.x - margin;
         const maxX = view.x + view.width + margin;
         const minY = view.y - margin;
         const maxY = view.y + view.height + margin;
-        for (const { sprite } of this.lights)
+        for (const entry of this.lights)
         {
+            const { spec, sprite, phase, baseDiameter } = entry;
             const visible = sprite.x >= minX && sprite.x <= maxX && sprite.y >= minY && sprite.y <= maxY;
             sprite.setVisible(visible);
+            if (!visible) continue;
+
+            if (spec.flicker !== false)
+            {
+                // Two sines: a slow 1.7Hz swell and a faster 5.3Hz crackle.
+                // Sum in [-0.18, +0.18] — that's our flicker multiplier.
+                const f1 = Math.sin(t * 1.7 * Math.PI * 2 + phase);
+                const f2 = Math.sin(t * 5.3 * Math.PI * 2 + phase * 1.31);
+                const flicker = 1 + 0.12 * f1 + 0.06 * f2;
+                sprite.setDisplaySize(baseDiameter * flicker, baseDiameter * flicker);
+                sprite.setAlpha(spec.intensity * this.hourlyBoost * (0.82 + 0.18 * flicker));
+            }
         }
     }
 
@@ -115,11 +141,13 @@ export class PointLights
 
     /**
      * Build the shared radial-gradient texture. White at the center with
-     * alpha 0.55, falling off through 0.42 → 0.18 → 0.04 → 0. The reduced
+     * alpha 0.7, falling off through 0.5 → 0.22 → 0.05 → 0. The reduced
      * peak (was 1.0) keeps the center from blowing out to pure white —
      * SCREEN with a per-light orange tint then pushes underlying pixels
      * toward warm yellow-orange without saturating them. Pure-white
-     * centers read as overexposed flash, not firelight.
+     * centers read as overexposed flash, not firelight. Bumped from 0.55
+     * → 0.7 so fires are clearly visible at night even when the
+     * atmosphere tint darkens everything around them.
      */
     private ensureRadialTexture (scene: Scene): void
     {
@@ -131,10 +159,10 @@ export class PointLights
         const cx = RADIAL_TEXTURE_SIZE / 2;
         const cy = RADIAL_TEXTURE_SIZE / 2;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
-        grad.addColorStop(0.0, 'rgba(255,255,255,0.55)');
-        grad.addColorStop(0.25, 'rgba(255,255,255,0.42)');
-        grad.addColorStop(0.55, 'rgba(255,255,255,0.18)');
-        grad.addColorStop(0.85, 'rgba(255,255,255,0.04)');
+        grad.addColorStop(0.0, 'rgba(255,255,255,0.7)');
+        grad.addColorStop(0.25, 'rgba(255,255,255,0.5)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0.22)');
+        grad.addColorStop(0.85, 'rgba(255,255,255,0.05)');
         grad.addColorStop(1.0, 'rgba(255,255,255,0.0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, RADIAL_TEXTURE_SIZE, RADIAL_TEXTURE_SIZE);

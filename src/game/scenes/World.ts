@@ -122,9 +122,9 @@ export class World extends Scene
         // signature — smooth radial light that bleeds across the pixel grid.
         const firepit = this.world.findWalkableAt(128, 128);
         this.pointLights = new PointLights(this, [
-            { tx: firepit.tx, ty: firepit.ty, radius: 96, color: 0xff8a3c, intensity: 0.95 }, // central campfire
-            { tx: STOCKPILE.tx, ty: STOCKPILE.ty, radius: 64, color: 0xffd28a, intensity: 0.7 }, // stockpile lantern
-            { tx: FOOD_SOURCE.tx, ty: FOOD_SOURCE.ty, radius: 56, color: 0xffc070, intensity: 0.6 }, // food-source lantern
+            { tx: firepit.tx, ty: firepit.ty, radius: 128, color: 0xff8a3c, intensity: 1.0, flicker: true },  // central campfire (breathes)
+            { tx: STOCKPILE.tx, ty: STOCKPILE.ty, radius: 72, color: 0xffd28a, intensity: 0.7, flicker: false }, // lantern — steady
+            { tx: FOOD_SOURCE.tx, ty: FOOD_SOURCE.ty, radius: 60, color: 0xffc070, intensity: 0.6, flicker: false }, // lantern — steady
         ]);
 
         // Decoration clutter — ferns, pebbles, mushrooms, twigs scattered on
@@ -289,6 +289,7 @@ export class World extends Scene
             (window as unknown as { __world: WorldModel | null }).__world = this.world;
             (window as unknown as { __ecs: ECSWorld | null }).__ecs = this.ecs;
             (window as unknown as { __cam: CameraController | null }).__cam = this.cameraController;
+            (window as unknown as { __lights: PointLights | null }).__lights = this.pointLights;
             // Debug hook: dump the game canvas as a base64 PNG. Used by the
             // CDP shoot script when Page.captureScreenshot is broken on this
             // host. Tries Phaser's renderer.snapshot first (WebGL path),
@@ -332,7 +333,7 @@ export class World extends Scene
         }
         if (this.pointLights && this.cameraController)
         {
-            this.pointLights.update(this.cameraController.cam);
+            this.pointLights.update(this.cameraController.cam, delta);
         }
         if (this.fog && this.ecs && this.cameraController)
         {
