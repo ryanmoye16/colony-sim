@@ -5,6 +5,10 @@ import { Time } from '../time/time';
 import { HUD } from '../ui/hud';
 import { WorldRenderer } from '../render/world-renderer';
 import { CameraController } from '../render/camera-controller';
+import { Atmosphere } from '../render/atmosphere';
+import { SettlerShadows } from '../render/shadows';
+import { DecorationRenderer } from '../render/decoration-renderer';
+import { FogOfWar } from '../render/fog-of-war';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -44,6 +48,10 @@ export class World extends Scene
     private ecs: ECSWorld | null = null;
     private settlerContainer: GameObjects.Container | null = null;
     private itemContainer: GameObjects.Container | null = null;
+    private shadows: SettlerShadows | null = null;
+    private atmosphere: Atmosphere | null = null;
+    private decorationRenderer: DecorationRenderer | null = null;
+    private fog: FogOfWar | null = null;
     private foodMarker: GameObjects.Arc | null = null;
     private stockpileMarker: GameObjects.Rectangle | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -101,6 +109,16 @@ export class World extends Scene
         this.pathPreviewContainer = this.add.container(0, 0);
         this.pathPreviewContainer.setDepth(11);
 
+        // Atmospheric layer (tint + vignette + wind particles) sits above
+        // the world and below HUD. Settler drop-shadows live just under the
+        // settler sprites at depth 9.
+        this.atmosphere = new Atmosphere(this, WORLD_SEED);
+        this.shadows = new SettlerShadows(this);
+
+        // Decoration clutter — ferns, pebbles, mushrooms, twigs scattered on
+        // grass/dirt tiles. Static once placed; doesn't redraw on tile.changed.
+        this.decorationRenderer = new DecorationRenderer(this, this.world);
+
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
             this.world.findWalkableAt(96, 96),
@@ -120,8 +138,15 @@ export class World extends Scene
                 this.ecs, this, this.settlerContainer,
                 spawnPoints[i].tx, spawnPoints[i].ty, settlerTextures[i],
                 null, 1, -INITIAL_SETTLER_AGE_TICKS,
+                this.shadows,
             );
         }
+
+        // Fog of war — black mask over tiles the player hasn't scouted yet.
+        // Initial visibility around each spawn point keeps the player from
+        // starting fully blind.
+        this.fog = new FogOfWar(this, this.world, 6);
+        for (const sp of spawnPoints) this.fog.revealAround(sp.tx, sp.ty, 6);
 
         this.foodSource = this.world.findWalkableAt(FOOD_SOURCE.tx, FOOD_SOURCE.ty);
         this.foodMarker = this.add.circle(
@@ -158,10 +183,11 @@ export class World extends Scene
             (tx, ty, parents, generation, tick) => createChildSettler(
                 this.ecs!, this, this.settlerContainer!,
                 tx, ty, parents, generation, tick, 'settler-orange',
+                this.shadows,
             ),
         );
         this.wander = new WanderSystem(this.world, this.foodSource, this.jobQueue, this.lifeSystem, rng);
-        this.renderSync = new RenderSyncSystem(this);
+        this.renderSync = new RenderSyncSystem(this, this.shadows);
         this.chronicleUI = new ChronicleUI(this.chronicle);
         this.minimap = new MiniMap(
             this.world,
@@ -190,12 +216,19 @@ export class World extends Scene
         this.portrait.setDepth(900);
         this.portrait.setDisplaySize(40, 40);
 
-        this.add.text(512, 750, 'WASD/Arrows/edge: pan  ·  Wheel: zoom  ·  Space: speed  ·  ESC: pause', {
+        this.add.text(512, 750, 'WASD/Arrows/edge: pan  ·  Wheel: zoom  ·  Space: speed  ·  ESC: pause  ·  F3: reveal all  ·  Right-click: scout', {
             fontFamily: 'Courier New',
             fontSize: 12,
             color: '#aaaaaa',
             align: 'center',
         }).setOrigin(0.5);
+
+        // Suppress browser context menu so right-click can be used for fog
+        // scouting without the OS menu appearing.
+        if (this.game.canvas)
+        {
+            this.game.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
 
         this.input.keyboard?.on('keydown-ESC', () => {
             this.scene.pause();
@@ -212,10 +245,30 @@ export class World extends Scene
 
         this.input.keyboard?.on('keydown-F5', () => this.save());
         this.input.keyboard?.on('keydown-F9', () => this.loadFromSave());
+        // F3 reveals the entire map (debug/scouting). Useful when the player
+        // wants to peek past the fog without walking settlers there.
+        this.input.keyboard?.on('keydown-F3', () => this.fog?.revealAll());
 
         this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-            if (pointer.button !== 0) return;
-            this.handleClick(pointer);
+            if (pointer.button === 0)
+            {
+                this.handleClick(pointer);
+                return;
+            }
+            if (pointer.button === 2 && this.fog && this.world)
+            {
+                // Right-click scouts: reveals a 6-tile radius around the
+                // clicked tile. Left-click is settler selection, right-click
+                // is exploration.
+                const wx = pointer.worldX;
+                const wy = pointer.worldY;
+                if (wx >= 0 && wy >= 0 && wx < this.world.width * TILE_SIZE && wy < this.world.height * TILE_SIZE)
+                {
+                    const tx = Math.floor(wx / TILE_SIZE);
+                    const ty = Math.floor(wy / TILE_SIZE);
+                    this.fog.revealAround(tx, ty, 6);
+                }
+            }
         });
 
         if (typeof window !== 'undefined')
@@ -231,6 +284,20 @@ export class World extends Scene
     {
         this.sim?.update(delta / 1000);
         this.cameraController?.update(delta);
+        if (this.sim && this.atmosphere) this.atmosphere.update(this.sim.tick, delta);
+        if (this.fog && this.ecs && this.cameraController)
+        {
+            // Decay last tick's visible tiles, then light up the area around
+            // each settler. Two passes per tick so the lit area tracks the
+            // settler positions smoothly.
+            this.fog.decay();
+            const settlerPositions: Array<{ tx: number; ty: number }> = [];
+            this.ecs.forEach<PositionData>(Position, (_entity, pos) => {
+                settlerPositions.push({ tx: pos.tx, ty: pos.ty });
+            });
+            this.fog.revealFromSettlers(settlerPositions);
+            this.fog.update(this.cameraController.cam);
+        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -293,6 +360,10 @@ export class World extends Scene
         this.minimap?.destroy();
         this.inspector?.destroy();
         this.portrait?.destroy();
+        this.atmosphere?.destroy();
+        this.shadows?.destroy();
+        this.decorationRenderer?.destroy();
+        this.fog?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -307,6 +378,10 @@ export class World extends Scene
         this.minimap = null;
         this.inspector = null;
         this.portrait = null;
+        this.atmosphere = null;
+        this.shadows = null;
+        this.decorationRenderer = null;
+        this.fog = null;
         this.foodSource = null;
         this.stockpile = null;
         this.jobQueue = null;
@@ -414,6 +489,11 @@ export class World extends Scene
         this.ecs.clear();
 
         this.world.restore(data.world);
+
+        // Decorations live with the world model; recreate the renderer so
+        // it picks up the (possibly-changed) decoration list from the save.
+        this.decorationRenderer?.destroy();
+        this.decorationRenderer = new DecorationRenderer(this, this.world);
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);
@@ -423,6 +503,18 @@ export class World extends Scene
             const pos = this.ecs!.getComponent<PositionData>(id, Position);
             const render = this.ecs!.getComponent<RenderData>(id, Render);
             if (pos && render) this.recreateSettlerSprite(id, pos, render);
+        });
+        // Reattach shadows for all restored settlers.
+        this.ecs.forEachEntity((id) => {
+            const pos = this.ecs!.getComponent<PositionData>(id, Position);
+            if (pos && this.shadows)
+            {
+                this.shadows.attach(
+                    id,
+                    pos.tx * TILE_SIZE + TILE_SIZE / 2,
+                    pos.ty * TILE_SIZE + TILE_SIZE / 2,
+                );
+            }
         });
 
         this.worldRenderer?.restoreAll(this, this.world);

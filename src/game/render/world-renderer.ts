@@ -55,6 +55,22 @@ export class WorldRenderer
         if (!tex) return;
         const src = tex.getCanvas();
         if (!src) return;
+
+        // Bake a soft drop-shadow under trees. The shadow is part of the
+        // static world-composite canvas so it costs nothing per frame and
+        // stays put when settlers walk over it. Plum tint (#18081c at 0.35
+        // alpha) matches the earth palette so it reads as ground shade
+        // rather than a black blob.
+        if (type === TileType.Tree || type === TileType.TreePine || type === TileType.TreeBush)
+        {
+            const sx = x * TILE_SIZE + TILE_SIZE / 2;
+            const sy = y * TILE_SIZE + TILE_SIZE * 0.85;
+            ctx.fillStyle = 'rgba(24, 8, 28, 0.35)';
+            ctx.beginPath();
+            ctx.ellipse(sx, sy, TILE_SIZE * 0.42, TILE_SIZE * 0.18, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
         ctx.drawImage(src, x * TILE_SIZE, y * TILE_SIZE);
     }
 

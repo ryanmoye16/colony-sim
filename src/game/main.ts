@@ -25,7 +25,10 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const StartGame = (parent: string) => {
 
-    return new Game({ ...config, parent });
+    const game = new Game({ ...config, parent });
+    // Dev hook: expose the game so headless tooling can drive the camera.
+    if (typeof window !== 'undefined') (window as unknown as { __GAME: Game }).__GAME = game;
+    return game;
 
 }
 

@@ -2,6 +2,7 @@ import { createNoise2D } from 'simplex-noise';
 import { mulberry32 } from '../util/rng';
 import { World } from './world';
 import { TileType } from './tile';
+import { generateDecorations } from './decoration';
 
 export interface WorldGenOptions
 {
@@ -46,6 +47,10 @@ export function generateWorld (world: World, options: WorldGenOptions): void
     // Post-process: sprinkle biome edge tiles at sand↔water and grass↔sand
     // boundaries. Uses the per-tile variant noise to pick deterministic edges.
     sprinkleBiomeEdges(world, options.seed);
+
+    // Scatter decorative clutter (ferns, pebbles, mushrooms, twigs) on
+    // grass/dirt tiles. Deterministic per seed.
+    world.decorations = generateDecorations(world, options.seed);
 }
 
 export function determineBiome (elev: number, moist: number, variant: number = 0.5): TileType

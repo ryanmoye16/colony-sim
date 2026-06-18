@@ -5,6 +5,7 @@ import type { GameObjects } from 'phaser';
 import { isWalkable } from '../world/tile';
 import type { World as WorldModel } from '../world/world';
 import { TILE_SIZE } from '../config/game.config';
+import type { SettlerShadows } from '../render/shadows';
 
 export function createSettler (
     ecs: ECSWorld,
@@ -16,6 +17,7 @@ export function createSettler (
     parents: [number, number] | null = null,
     generation: number = 1,
     birthTick: number = 0,
+    shadows: SettlerShadows | null = null,
 ): number
 {
     const id = ecs.createEntity();
@@ -46,6 +48,8 @@ export function createSettler (
     const relationship: RelationshipData = { partner: null, intimacy: new Map() };
     ecs.addComponent(id, Relationship, relationship);
 
+    if (shadows) shadows.attach(id, px, py);
+
     return id;
 }
 
@@ -59,9 +63,10 @@ export function createChildSettler (
     generation: number,
     birthTick: number,
     textureKey: string,
+    shadows: SettlerShadows | null = null,
 ): number
 {
-    return createSettler(ecs, scene, container, tx, ty, textureKey, parents, generation, birthTick);
+    return createSettler(ecs, scene, container, tx, ty, textureKey, parents, generation, birthTick, shadows);
 }
 
 export function findWalkableSpawn (world: WorldModel): { tx: number; ty: number }

@@ -4,15 +4,21 @@ import type { ECSWorld } from '../world';
 import { Position, Render, Life, AI } from '../components';
 import type { PositionData, RenderData, LifeData, AIData } from '../components';
 import { TILE_SIZE, getAgeStage, LIFESPAN_TICKS } from '../../config/game.config';
+import type { SettlerShadows } from '../../render/shadows';
 
 const BASE_SIZE = TILE_SIZE * 0.95;
 
 export class RenderSyncSystem implements System
 {
-    constructor (private readonly scene: Scene) {}
+    constructor (
+        private readonly scene: Scene,
+        private readonly shadows: SettlerShadows | null = null,
+    ) {}
 
     update (ecs: ECSWorld, tick: number, _dt: number): void
     {
+        const liveEntities = new Set<number>();
+
         ecs.forEach<PositionData>(Position, (entity, pos) => {
             const render = ecs.getComponent<RenderData>(entity, Render);
             if (!render?.gameObject) return;
@@ -22,8 +28,10 @@ export class RenderSyncSystem implements System
             const moving = !!(ai?.path && ai.pathIndex < ai.path.length && ai.state !== 'wandering');
             const bob = moving ? Math.sin(tick * 0.35) * (TILE_SIZE * 0.06) : 0;
 
-            img.x = pos.tx * TILE_SIZE + TILE_SIZE / 2;
-            img.y = pos.ty * TILE_SIZE + TILE_SIZE / 2 + bob;
+            const feetX = pos.tx * TILE_SIZE + TILE_SIZE / 2;
+            const feetY = pos.ty * TILE_SIZE + TILE_SIZE / 2;
+            img.x = feetX;
+            img.y = feetY + bob;
 
             const baseKey = render.textureKey; // e.g. 'settler-red'
             const phase = Math.floor(tick / 12) % 2;
@@ -45,6 +53,18 @@ export class RenderSyncSystem implements System
                 const displaySize = BASE_SIZE * sizeScale;
                 img.setDisplaySize(displaySize, displaySize);
             }
+
+            // Drop-shadow follows the feet, not the bob — the settler appears
+            // to lift off the shadow while walking.
+            if (this.shadows)
+            {
+                this.shadows.update(entity, feetX, feetY);
+            }
+
+            liveEntities.add(entity);
         });
+
+        // Remove shadows for entities that no longer exist (death, etc.).
+        if (this.shadows) this.shadows.pruneTo(liveEntities);
     }
 }

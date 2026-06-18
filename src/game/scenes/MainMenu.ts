@@ -42,5 +42,12 @@ export class MainMenu extends Scene
         this.input.once('pointerdown', () => {
             this.scene.start('World');
         });
+
+        // Dev / debug: ?skipMenu in URL launches the world immediately so
+        // headless tooling can screenshot the game without simulating a click.
+        if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('skipMenu'))
+        {
+            this.scene.start('World');
+        }
     }
 }
