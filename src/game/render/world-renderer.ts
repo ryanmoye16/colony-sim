@@ -1,7 +1,7 @@
 import { Scene, GameObjects, Textures } from 'phaser';
 import { World } from '../world/world';
 import { TILE_SIZE } from '../config/game.config';
-import { TileType } from '../world/tile';
+import { TileType, biomeGroup } from '../world/tile';
 import { getTileTextureKey, WALL_TEXTURE_KEY } from './sprites';
 
 export class WorldRenderer
@@ -82,6 +82,16 @@ export class WorldRenderer
             this.drawAmbientOcclusion(ctx, x, y, world);
         }
 
+        // Bake biome-edge haze: a light cool-white gradient that bleeds
+        // onto this tile from a neighbor of a different biome group.
+        // Pools especially hard at the water↔land and sand↔grass borders,
+        // giving the world the kind of atmospheric perspective Odd Realm
+        // uses to separate biomes. Baked so it's free per frame.
+        if (type !== TileType.Wall && type !== TileType.Tree && type !== TileType.TreePine && type !== TileType.TreeBush)
+        {
+            this.drawBiomeHaze(ctx, x, y, world);
+        }
+
         ctx.drawImage(src, x * TILE_SIZE, y * TILE_SIZE);
     }
 
@@ -150,6 +160,68 @@ export class WorldRenderer
             grad.addColorStop(1, `rgba(0,0,0,${AO_ALPHA})`);
             ctx.fillStyle = grad;
             ctx.fillRect(px + TILE_SIZE - AO_DEPTH, py, AO_DEPTH, TILE_SIZE);
+        }
+    }
+
+    // Paint a soft cool-white gradient onto this tile where it borders a
+    // different biome. The depth is wider than AO (10px vs 5px) and the
+    // color is a light blue-grey rather than black, so the effect reads
+    // as drifting mist/ground-fog rather than a shadow. Painted BEFORE
+    // the tile sprite so the tile draws on top, with the haze peeking
+    // out along the edges — feels like the world is breathing.
+    private drawBiomeHaze (ctx: CanvasRenderingContext2D, x: number, y: number, world: World): void
+    {
+        const HAZE_DEPTH = 10;
+        const HAZE_ALPHA = 0.32;
+        // Cool blueish-white reads as atmospheric mist at any hour of day.
+        // Slightly higher R than B gives a faint warm bias so the haze
+        // doesn't fight the warmer terrain palettes.
+        const HAZE_COLOR = '198, 210, 230';
+
+        const myGroup = biomeGroup(world.getTile(x, y));
+        if (myGroup === 0) return;
+
+        const nGroup = world.inBounds(x, y - 1) ? biomeGroup(world.getTile(x, y - 1)) : 0;
+        const sGroup = world.inBounds(x, y + 1) ? biomeGroup(world.getTile(x, y + 1)) : 0;
+        const eGroup = world.inBounds(x + 1, y) ? biomeGroup(world.getTile(x + 1, y)) : 0;
+        const wGroup = world.inBounds(x - 1, y) ? biomeGroup(world.getTile(x - 1, y)) : 0;
+
+        if (nGroup === myGroup && sGroup === myGroup && eGroup === myGroup && wGroup === myGroup) return;
+
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+
+        if (nGroup !== myGroup && nGroup !== 0)
+        {
+            const grad = ctx.createLinearGradient(px, py, px, py + HAZE_DEPTH);
+            grad.addColorStop(0, `rgba(${HAZE_COLOR}, ${HAZE_ALPHA})`);
+            grad.addColorStop(1, `rgba(${HAZE_COLOR}, 0)`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, py, TILE_SIZE, HAZE_DEPTH);
+        }
+        if (sGroup !== myGroup && sGroup !== 0)
+        {
+            const grad = ctx.createLinearGradient(px, py + TILE_SIZE - HAZE_DEPTH, px, py + TILE_SIZE);
+            grad.addColorStop(0, `rgba(${HAZE_COLOR}, 0)`);
+            grad.addColorStop(1, `rgba(${HAZE_COLOR}, ${HAZE_ALPHA})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, py + TILE_SIZE - HAZE_DEPTH, TILE_SIZE, HAZE_DEPTH);
+        }
+        if (wGroup !== myGroup && wGroup !== 0)
+        {
+            const grad = ctx.createLinearGradient(px, py, px + HAZE_DEPTH, py);
+            grad.addColorStop(0, `rgba(${HAZE_COLOR}, ${HAZE_ALPHA})`);
+            grad.addColorStop(1, `rgba(${HAZE_COLOR}, 0)`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, py, HAZE_DEPTH, TILE_SIZE);
+        }
+        if (eGroup !== myGroup && eGroup !== 0)
+        {
+            const grad = ctx.createLinearGradient(px + TILE_SIZE - HAZE_DEPTH, py, px + TILE_SIZE, py);
+            grad.addColorStop(0, `rgba(${HAZE_COLOR}, 0)`);
+            grad.addColorStop(1, `rgba(${HAZE_COLOR}, ${HAZE_ALPHA})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(px + TILE_SIZE - HAZE_DEPTH, py, HAZE_DEPTH, TILE_SIZE);
         }
     }
 

@@ -102,6 +102,15 @@ await send('Runtime.evaluate', { expression: `(() => {
     cam.scrollX = target.x - cam.width / (2 * cam.zoom);
     cam.scrollY = target.y - cam.height / (2 * cam.zoom);
   }
+  // If CAMERA_WHILE arg was passed, override to that world pixel.
+  const arg = ${JSON.stringify(process.argv[5] || '')};
+  if (arg && arg.includes(',')) {
+    const [tx, ty] = arg.split(',').map(Number);
+    if (!isNaN(tx) && !isNaN(ty)) {
+      cam.scrollX = tx * 16 - cam.width / (2 * cam.zoom);
+      cam.scrollY = ty * 16 - cam.height / (2 * cam.zoom);
+    }
+  }
 })()` });
 
 await wait(800);
