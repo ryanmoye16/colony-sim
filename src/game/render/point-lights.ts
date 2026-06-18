@@ -18,8 +18,10 @@
 // =============================================================================
 
 import type { Scene, Cameras } from 'phaser';
-import { BlendModes, TintModes } from 'phaser';
+import { BlendModes, TintModes, Math as PhaserMath } from 'phaser';
 import { TILE_SIZE } from '../config/game.config';
+
+const { Clamp } = PhaserMath;
 
 const RADIAL_TEXTURE_KEY = 'point-light-gradient';
 const RADIAL_TEXTURE_SIZE = 128;
@@ -72,7 +74,7 @@ export class PointLights
      */
     setHourlyBoost (boost: number): void
     {
-        this.hourlyBoost = Phaser.Math.Clamp(boost, 0, 1);
+        this.hourlyBoost = Clamp(boost, 0, 1);
         for (const { spec, sprite } of this.lights)
         {
             sprite.setAlpha(spec.intensity * this.hourlyBoost);

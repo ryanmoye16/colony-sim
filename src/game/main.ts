@@ -5,8 +5,13 @@ import { PauseMenu } from './scenes/PauseMenu';
 import { AUTO, CANVAS, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 
+const useCanvasMode = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('canvas');
+
+if (useCanvasMode) console.log('[main] canvas mode enabled');
+
 const config: Phaser.Types.Core.GameConfig = {
-    type: AUTO,
+    type: useCanvasMode ? (CANVAS as unknown as typeof AUTO) : AUTO,
     width: 1024,
     height: 768,
     parent: 'game-container',
@@ -16,10 +21,10 @@ const config: Phaser.Types.Core.GameConfig = {
     roundPixels: true,
     // Canvas2D mode is enabled by `?canvas=1` in the URL. Useful for
     // headless tooling (Page.captureScreenshot, canvas.toDataURL) which
-    // can't reliably capture WebGL canvases in headless Chrome.
-    ...(typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('canvas')
-        ? { type: CANVAS as unknown as typeof AUTO }
-        : {}),
+    // can't reliably capture WebGL canvases in headless Chrome. We also
+    // force setTimeout over requestAnimationFrame because RAF doesn't fire
+    // when the page is occluded by another window.
+    fps: useCanvasMode ? { forceSetTimeOut: true } : {},
     scene: [
         Boot,
         Preloader,
