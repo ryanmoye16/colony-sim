@@ -9,12 +9,19 @@
 // Each light is a single Image sprite using a shared radial-gradient
 // texture (white center → transparent edge). We tint per-light to give
 // warm (fire) or cool (lantern) hues, and use BlendModes.SCREEN so the
-// light brightens what's underneath without over-saturating.
+// warm tint blends with whatever's underneath. ADD was tried but in
+// Phaser 4's Canvas2D renderer the tint is not applied to the sprite
+// pixels before the blend — the gradient renders as pure white, so ADD
+// over blue water just produces cyan instead of warm orange. SCREEN with
+// an orange tint correctly shifts the hue toward yellow-orange and is
+// what Odd Realm's lighting looks like anyway.
 //
-// Depth 49 — above world/items/settlers/shadows, below the atmosphere tint
-// at depth 50. The tint then multiplies the entire scene (including lit
-// areas), so a fire at night glows through the dusk/night color cast
-// instead of punching through it.
+// Depth 51 — above world/items/settlers/shadows AND above the atmosphere
+// tint at depth 50. The tint darkens unlit areas (so night reads as night),
+// and lights punch through it. Previously lights sat at depth 49 below the
+// tint, which meant the tint's normal-blend darkening visibly dimmed the
+// lit pool at night — the campfire looked like a dim smudge instead of the
+// warm bloom we want.
 // =============================================================================
 
 import type { Scene, Cameras } from 'phaser';
@@ -58,7 +65,7 @@ export class PointLights
             sprite.setOrigin(0.5, 0.5);
             sprite.setDisplaySize(spec.radius * 2, spec.radius * 2);
             sprite.setScrollFactor(1);
-            sprite.setDepth(49);
+            sprite.setDepth(51);
             sprite.setBlendMode(BlendModes.SCREEN);
             sprite.setAlpha(spec.intensity);
             sprite.setTint(spec.color).setTintMode(TintModes.FILL);
@@ -107,9 +114,12 @@ export class PointLights
     }
 
     /**
-     * Build the shared radial-gradient texture (white center → transparent
-     * edge). SCREEN blending on a white-tinted sprite gives us a perfect
-     * additive light pool; per-light tint colorizes it.
+     * Build the shared radial-gradient texture. White at the center with
+     * alpha 0.55, falling off through 0.42 → 0.18 → 0.04 → 0. The reduced
+     * peak (was 1.0) keeps the center from blowing out to pure white —
+     * SCREEN with a per-light orange tint then pushes underlying pixels
+     * toward warm yellow-orange without saturating them. Pure-white
+     * centers read as overexposed flash, not firelight.
      */
     private ensureRadialTexture (scene: Scene): void
     {
@@ -121,9 +131,10 @@ export class PointLights
         const cx = RADIAL_TEXTURE_SIZE / 2;
         const cy = RADIAL_TEXTURE_SIZE / 2;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cx);
-        grad.addColorStop(0.0, 'rgba(255,255,255,1.0)');
-        grad.addColorStop(0.35, 'rgba(255,255,255,0.65)');
-        grad.addColorStop(0.7, 'rgba(255,255,255,0.18)');
+        grad.addColorStop(0.0, 'rgba(255,255,255,0.55)');
+        grad.addColorStop(0.25, 'rgba(255,255,255,0.42)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0.18)');
+        grad.addColorStop(0.85, 'rgba(255,255,255,0.04)');
         grad.addColorStop(1.0, 'rgba(255,255,255,0.0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, RADIAL_TEXTURE_SIZE, RADIAL_TEXTURE_SIZE);

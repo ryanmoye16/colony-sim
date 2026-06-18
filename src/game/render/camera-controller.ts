@@ -19,6 +19,7 @@ export class CameraController
     private readonly keys: KeyMap;
     readonly cam: Phaser.Cameras.Scene2D.Camera;
     private paused: boolean = false;
+    private cursorInside: boolean = false;
 
     constructor (scene: Scene, worldWidthPx: number, worldHeightPx: number)
     {
@@ -46,6 +47,16 @@ export class CameraController
             const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, current + (dy > 0 ? -ZOOM_STEP : ZOOM_STEP)));
             this.cam.setZoom(next);
         });
+
+        // Edge-pan should only engage after the player has actually moved
+        // the cursor into the game window. Otherwise the cursor's pre-launch
+        // position (whatever happened to be on screen when the page loaded)
+        // can sit inside the deadzone and the camera starts drifting on its
+        // own the moment the game boots. We track the most recent mousemove
+        // inside the canvas; until that fires, edge-pan is suppressed even
+        // though WASD still works.
+        scene.input.on('pointermove', () => { this.cursorInside = true; });
+        scene.input.on('pointerout', () => { this.cursorInside = false; });
     }
 
     setZoom (zoom: number): void
@@ -71,10 +82,15 @@ export class CameraController
         if (this.keys.right.isDown) dx += 1;
 
         const pointer = this.cam.scene.input.activePointer;
-        if (pointer.x < SCROLL_DEADZONE) dx -= 1;
-        if (pointer.x > this.cam.width - SCROLL_DEADZONE) dx += 1;
-        if (pointer.y < SCROLL_DEADZONE) dy -= 1;
-        if (pointer.y > this.cam.height - SCROLL_DEADZONE) dy += 1;
+        // Only edge-pan after the player has actually moved the cursor into
+        // the game (see constructor). WASD still works without that gate.
+        if (this.cursorInside)
+        {
+            if (pointer.x < SCROLL_DEADZONE) dx -= 1;
+            if (pointer.x > this.cam.width - SCROLL_DEADZONE) dx += 1;
+            if (pointer.y < SCROLL_DEADZONE) dy -= 1;
+            if (pointer.y > this.cam.height - SCROLL_DEADZONE) dy += 1;
+        }
 
         if (dx === 0 && dy === 0) return;
 
