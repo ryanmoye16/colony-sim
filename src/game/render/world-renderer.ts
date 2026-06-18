@@ -58,17 +58,28 @@ export class WorldRenderer
 
         // Bake a soft drop-shadow under trees. The shadow is part of the
         // static world-composite canvas so it costs nothing per frame and
-        // stays put when settlers walk over it. Plum tint (#18081c at 0.35
+        // stays put when settlers walk over it. Plum tint (#18081c at 0.55
         // alpha) matches the earth palette so it reads as ground shade
         // rather than a black blob.
         if (type === TileType.Tree || type === TileType.TreePine || type === TileType.TreeBush)
         {
             const sx = x * TILE_SIZE + TILE_SIZE / 2;
             const sy = y * TILE_SIZE + TILE_SIZE * 0.85;
-            ctx.fillStyle = 'rgba(24, 8, 28, 0.35)';
+            ctx.fillStyle = 'rgba(24, 8, 28, 0.55)';
             ctx.beginPath();
-            ctx.ellipse(sx, sy, TILE_SIZE * 0.42, TILE_SIZE * 0.18, 0, 0, Math.PI * 2);
+            ctx.ellipse(sx, sy, TILE_SIZE * 0.48, TILE_SIZE * 0.22, 0, 0, Math.PI * 2);
             ctx.fill();
+        }
+
+        // Bake ambient occlusion: when a non-wall tile has a wall neighbor,
+        // paint a soft dark gradient along the wall-facing edge. This gives
+        // wall corners real depth — the kind of subtle shading that makes
+        // a static pixel-art world feel grounded. Baked into the composite
+        // canvas so it costs nothing per frame and follows wall changes
+        // automatically when tiles are redrawn.
+        if (type !== TileType.Wall)
+        {
+            this.drawAmbientOcclusion(ctx, x, y, world);
         }
 
         ctx.drawImage(src, x * TILE_SIZE, y * TILE_SIZE);
@@ -87,6 +98,59 @@ export class WorldRenderer
             return key;
         }
         return getTileTextureKey(type, x, y);
+    }
+
+    // Paint a soft dark gradient along each edge of a floor tile that borders
+    // a wall. The gradient is wider at the wall-facing side and fades to
+    // transparent, simulating ambient occlusion. Walls facing the floor tile
+    // create the dark "crevice" you see at every interior corner in Odd Realm.
+    private drawAmbientOcclusion (ctx: CanvasRenderingContext2D, x: number, y: number, world: World): void
+    {
+        const AO_DEPTH = 5; // px of gradient falloff
+        const AO_ALPHA = 0.28;
+
+        const nWall = world.inBounds(x, y - 1) && world.getTile(x, y - 1) === TileType.Wall;
+        const sWall = world.inBounds(x, y + 1) && world.getTile(x, y + 1) === TileType.Wall;
+        const eWall = world.inBounds(x + 1, y) && world.getTile(x + 1, y) === TileType.Wall;
+        const wWall = world.inBounds(x - 1, y) && world.getTile(x - 1, y) === TileType.Wall;
+
+        if (!nWall && !sWall && !eWall && !wWall) return;
+
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+
+        if (nWall)
+        {
+            const grad = ctx.createLinearGradient(px, py, px, py + AO_DEPTH);
+            grad.addColorStop(0, `rgba(0,0,0,${AO_ALPHA})`);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, py, TILE_SIZE, AO_DEPTH);
+        }
+        if (sWall)
+        {
+            const grad = ctx.createLinearGradient(px, py + TILE_SIZE - AO_DEPTH, px, py + TILE_SIZE);
+            grad.addColorStop(0, 'rgba(0,0,0,0)');
+            grad.addColorStop(1, `rgba(0,0,0,${AO_ALPHA})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, py + TILE_SIZE - AO_DEPTH, TILE_SIZE, AO_DEPTH);
+        }
+        if (wWall)
+        {
+            const grad = ctx.createLinearGradient(px, py, px + AO_DEPTH, py);
+            grad.addColorStop(0, `rgba(0,0,0,${AO_ALPHA})`);
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(px, py, AO_DEPTH, TILE_SIZE);
+        }
+        if (eWall)
+        {
+            const grad = ctx.createLinearGradient(px + TILE_SIZE - AO_DEPTH, py, px + TILE_SIZE, py);
+            grad.addColorStop(0, 'rgba(0,0,0,0)');
+            grad.addColorStop(1, `rgba(0,0,0,${AO_ALPHA})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(px + TILE_SIZE - AO_DEPTH, py, AO_DEPTH, TILE_SIZE);
+        }
     }
 
     private redrawTile (scene: Scene, wx: number, wy: number, world: World): void

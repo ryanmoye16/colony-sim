@@ -36,19 +36,23 @@ interface TintKey {
 }
 
 const TINT_KEYS: TintKey[] = [
-    { hour:  0, r:  26, g:  31, b:  58 }, // deep night (cool indigo)
-    { hour:  5, r:  58, g:  50, b:  90 }, // pre-dawn (purple-blue)
-    { hour:  7, r: 200, g: 144, b:  96 }, // dawn (warm peach)
+    { hour:  0, r:  18, g:  22, b:  46 }, // deep night (cool indigo)
+    { hour:  5, r:  46, g:  38, b:  78 }, // pre-dawn (purple-blue)
+    { hour:  7, r: 196, g: 132, b:  80 }, // dawn (warm peach)
     { hour: 10, r: 240, g: 208, b: 144 }, // morning (warm gold)
     { hour: 14, r: 248, g: 232, b: 176 }, // midday (pale warm yellow)
-    { hour: 18, r: 168, g: 104, b: 120 }, // dusk (rose)
-    { hour: 21, r:  74, g:  58, b: 104 }, // evening (purple)
-    { hour: 24, r:  26, g:  31, b:  58 }, // back to deep night
+    { hour: 18, r: 168, g:  96, b: 112 }, // dusk (rose)
+    { hour: 21, r:  64, g:  48, b:  96 }, // evening (purple)
+    { hour: 24, r:  18, g:  22, b:  46 }, // back to deep night
 ];
 
-// Tint alpha — how strong the time-of-day color overlays the world. Around
-// 0.18 the tint is visible without overpowering the underlying palette.
-const TINT_ALPHA = 0.18;
+// Tint alpha — how strong the time-of-day color overlays the world. We push
+// this past 0.30 because the renderer is configured pixelArt=true with
+// nearest-neighbor filtering but the alpha channel still interpolates smoothly
+// across the screen — so the tint reads as a real atmospheric layer, not a
+// pixel-art-conservative veil. Odd Realm's signature look comes from bold
+// smooth overlays on chunky pixel art, so lean into the overlay.
+const TINT_ALPHA = 0.34;
 
 // -----------------------------------------------------------------------------
 // Vignette
@@ -57,10 +61,10 @@ const TINT_ALPHA = 0.18;
 // into a world instead of staring at a flat rectangle. We draw four rectangles
 // at the screen edges rather than a radial gradient because the renderer is
 // pixel-art (antialias=false, roundPixels=true) and soft gradients would
-// stair-step into ugly bands.
+// stair-step into ugly bands. Pushed past 0.50 so the framing is unmistakable.
 
-const VIGNETTE_ALPHA = 0.35;
-const VIGNETTE_BAND_PX = 96;
+const VIGNETTE_ALPHA = 0.58;
+const VIGNETTE_BAND_PX = 128;
 
 // -----------------------------------------------------------------------------
 // Wind leaves
@@ -91,6 +95,16 @@ export class Atmosphere
     private readonly vignette: Phaser.GameObjects.Graphics;
     private readonly leaves: LeafState[] = [];
     private readonly rng: () => number;
+
+    /**
+     * Convert a sim tick to a 0..24 hour value. Exposed so other systems
+     * (point lights, future time-of-day UI) can stay in sync with the tint
+     * cycle without recomputing the keyframe lerp.
+     */
+    static hourFromTick (tick: number): number
+    {
+        return ((tick % TICKS_PER_DAY) / TICKS_PER_DAY) * 24;
+    }
 
     constructor (private readonly scene: Scene, seed: number = 1)
     {
@@ -135,7 +149,7 @@ export class Atmosphere
     update (tick: number, deltaMs: number): void
     {
         // 1. Update tint color from hour-of-day.
-        const hour = ((tick % TICKS_PER_DAY) / TICKS_PER_DAY) * 24;
+        const hour = Atmosphere.hourFromTick(tick);
         const { r, g, b } = this.lerpTint(hour);
         const tintColor = (r << 16) | (g << 8) | b;
         this.tintRect.fillColor = tintColor;

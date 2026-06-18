@@ -12,10 +12,10 @@
 
 import type { Scene } from 'phaser';
 
-const SHADOW_WIDTH = 6;
-const SHADOW_HEIGHT = 2;
+const SHADOW_WIDTH = 9;
+const SHADOW_HEIGHT = 3;
 const SHADOW_COLOR = 0x18081c; // earthOut — plum, not pure black
-const SHADOW_ALPHA = 0.35;
+const SHADOW_ALPHA = 0.55;
 
 interface ShadowEntry {
     ellipse: Phaser.GameObjects.Ellipse;

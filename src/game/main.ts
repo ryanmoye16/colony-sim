@@ -2,7 +2,7 @@ import { Boot } from './scenes/Boot';
 import { MainMenu } from './scenes/MainMenu';
 import { World } from './scenes/World';
 import { PauseMenu } from './scenes/PauseMenu';
-import { AUTO, Game } from 'phaser';
+import { AUTO, CANVAS, Game } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -14,6 +14,12 @@ const config: Phaser.Types.Core.GameConfig = {
     pixelArt: true,
     antialias: false,
     roundPixels: true,
+    // Canvas2D mode is enabled by `?canvas=1` in the URL. Useful for
+    // headless tooling (Page.captureScreenshot, canvas.toDataURL) which
+    // can't reliably capture WebGL canvases in headless Chrome.
+    ...(typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('canvas')
+        ? { type: CANVAS as unknown as typeof AUTO }
+        : {}),
     scene: [
         Boot,
         Preloader,

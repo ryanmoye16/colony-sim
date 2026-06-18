@@ -15,10 +15,10 @@ import type { Scene, Cameras } from 'phaser';
 import { TILE_SIZE } from '../config/game.config';
 import type { World } from '../world/world';
 
-const UNSEEN_ALPHA = 0.85;
-const SEEN_ALPHA = 0.45;
-const UNSEEN_COLOR = 0x080612; // deep plum-black, matches earth palette
-const SEEN_COLOR = 0x100c20;
+const UNSEEN_ALPHA = 0.94;
+const SEEN_ALPHA = 0.62;
+const UNSEEN_COLOR = 0x06040c; // near-black plum, matches earth palette
+const SEEN_COLOR = 0x0c0820;
 
 export class FogOfWar
 {

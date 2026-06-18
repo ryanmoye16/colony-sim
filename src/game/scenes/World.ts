@@ -6,6 +6,7 @@ import { HUD } from '../ui/hud';
 import { WorldRenderer } from '../render/world-renderer';
 import { CameraController } from '../render/camera-controller';
 import { Atmosphere } from '../render/atmosphere';
+import { PointLights, lightBoostForHour } from '../render/point-lights';
 import { SettlerShadows } from '../render/shadows';
 import { DecorationRenderer } from '../render/decoration-renderer';
 import { FogOfWar } from '../render/fog-of-war';
@@ -50,6 +51,7 @@ export class World extends Scene
     private itemContainer: GameObjects.Container | null = null;
     private shadows: SettlerShadows | null = null;
     private atmosphere: Atmosphere | null = null;
+    private pointLights: PointLights | null = null;
     private decorationRenderer: DecorationRenderer | null = null;
     private fog: FogOfWar | null = null;
     private foodMarker: GameObjects.Arc | null = null;
@@ -114,6 +116,16 @@ export class World extends Scene
         // settler sprites at depth 9.
         this.atmosphere = new Atmosphere(this, WORLD_SEED);
         this.shadows = new SettlerShadows(this);
+
+        // Point-light pools at fixed world locations (campfire near spawn,
+        // lanterns at stockpile and food source). These are the odd-realm
+        // signature — smooth radial light that bleeds across the pixel grid.
+        const firepit = this.world.findWalkableAt(128, 128);
+        this.pointLights = new PointLights(this, [
+            { tx: firepit.tx, ty: firepit.ty, radius: 96, color: 0xff8a3c, intensity: 0.95 }, // central campfire
+            { tx: STOCKPILE.tx, ty: STOCKPILE.ty, radius: 64, color: 0xffd28a, intensity: 0.7 }, // stockpile lantern
+            { tx: FOOD_SOURCE.tx, ty: FOOD_SOURCE.ty, radius: 56, color: 0xffc070, intensity: 0.6 }, // food-source lantern
+        ]);
 
         // Decoration clutter — ferns, pebbles, mushrooms, twigs scattered on
         // grass/dirt tiles. Static once placed; doesn't redraw on tile.changed.
@@ -277,6 +289,34 @@ export class World extends Scene
             (window as unknown as { __world: WorldModel | null }).__world = this.world;
             (window as unknown as { __ecs: ECSWorld | null }).__ecs = this.ecs;
             (window as unknown as { __cam: CameraController | null }).__cam = this.cameraController;
+            // Debug hook: dump the game canvas as a base64 PNG. Used by the
+            // CDP shoot script when Page.captureScreenshot is broken on this
+            // host. Tries Phaser's renderer.snapshot first (WebGL path),
+            // and falls back to canvas.toDataURL for the Canvas2D renderer.
+            (window as unknown as { __captureCanvas: () => string | null }).__captureCanvas = () =>
+            {
+                const canvas = this.game.canvas as HTMLCanvasElement | null;
+                if (!canvas) return null;
+                try
+                {
+                    // Canvas2D mode: synchronous read
+                    return canvas.toDataURL('image/png');
+                }
+                catch
+                {
+                    // WebGL mode: try Phaser's async snapshot via a data:URL
+                    return null;
+                }
+            };
+            (window as unknown as { __captureCanvasAsync: (cb: (b64: string | null) => void) => void }).__captureCanvasAsync = (cb) =>
+            {
+                this.game.renderer.snapshot((image: HTMLImageElement | Phaser.Display.Color) =>
+                {
+                    if (!(image instanceof HTMLImageElement)) { cb(null); return; }
+                    if (!image.src) { cb(null); return; }
+                    cb(image.src);
+                });
+            };
         }
     }
 
@@ -284,7 +324,16 @@ export class World extends Scene
     {
         this.sim?.update(delta / 1000);
         this.cameraController?.update(delta);
-        if (this.sim && this.atmosphere) this.atmosphere.update(this.sim.tick, delta);
+        if (this.sim && this.atmosphere)
+        {
+            this.atmosphere.update(this.sim.tick, delta);
+            const hour = Atmosphere.hourFromTick(this.sim.tick);
+            this.pointLights?.setHourlyBoost(lightBoostForHour(hour));
+        }
+        if (this.pointLights && this.cameraController)
+        {
+            this.pointLights.update(this.cameraController.cam);
+        }
         if (this.fog && this.ecs && this.cameraController)
         {
             // Decay last tick's visible tiles, then light up the area around
@@ -362,6 +411,7 @@ export class World extends Scene
         this.portrait?.destroy();
         this.atmosphere?.destroy();
         this.shadows?.destroy();
+        this.pointLights?.destroy();
         this.decorationRenderer?.destroy();
         this.fog?.destroy();
         this.itemMarkers.clear();
@@ -380,6 +430,7 @@ export class World extends Scene
         this.portrait = null;
         this.atmosphere = null;
         this.shadows = null;
+        this.pointLights = null;
         this.decorationRenderer = null;
         this.fog = null;
         this.foodSource = null;
