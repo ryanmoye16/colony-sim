@@ -35,23 +35,28 @@ interface TintKey {
     b: number;
 }
 
+// Time-of-day palette. Each entry is the rgb color the screen tints toward
+// at that hour. The colors are saturated enough to read clearly at game zoom:
+// midday is a warm gold-cream (not white), dusk is a deep rose, and night
+// is a cool indigo that turns the world blue. The lerp between these gives
+// the world a clear day/night cycle instead of a constant mid-gray wash.
 const TINT_KEYS: TintKey[] = [
-    { hour:  0, r:  18, g:  22, b:  46 }, // deep night (cool indigo)
-    { hour:  5, r:  46, g:  38, b:  78 }, // pre-dawn (purple-blue)
-    { hour:  7, r: 196, g: 132, b:  80 }, // dawn (warm peach)
-    { hour: 10, r: 240, g: 208, b: 144 }, // morning (warm gold)
-    { hour: 14, r: 248, g: 232, b: 176 }, // midday (pale warm yellow)
-    { hour: 18, r: 168, g:  96, b: 112 }, // dusk (rose)
-    { hour: 21, r:  64, g:  48, b:  96 }, // evening (purple)
-    { hour: 24, r:  18, g:  22, b:  46 }, // back to deep night
+    { hour:  0, r:  16, g:  22, b:  56 }, // deep night (cool indigo)
+    { hour:  5, r:  58, g:  44, b:  96 }, // pre-dawn (purple-blue)
+    { hour:  7, r: 220, g: 142, b:  82 }, // dawn (warm peach-orange)
+    { hour: 10, r: 250, g: 220, b: 158 }, // morning (warm gold)
+    { hour: 14, r: 252, g: 240, b: 192 }, // midday (pale warm cream)
+    { hour: 18, r: 198, g:  98, b: 118 }, // dusk (deep rose)
+    { hour: 21, r:  72, g:  52, b: 108 }, // evening (purple)
+    { hour: 24, r:  16, g:  22, b:  56 }, // back to deep night
 ];
 
-// Tint alpha — how strong the time-of-day color overlays the world. We push
-// this past 0.30 because the renderer is configured pixelArt=true with
-// nearest-neighbor filtering but the alpha channel still interpolates smoothly
-// across the screen — so the tint reads as a real atmospheric layer, not a
-// pixel-art-conservative veil. Odd Realm's signature look comes from bold
-// smooth overlays on chunky pixel art, so lean into the overlay.
+// Tint alpha — how strong the time-of-day color overlays the world. 0.50
+// made the screen unmistakable at every hour but washed out the underlying
+// tile art at midday (the cream tint pushed everything to a yellow-green
+// that lost the forest-vs-grass contrast). 0.34 is the sweet spot — the
+// hour reads on screen (dawn vs dusk vs night is clear) while grass stays
+// green and forest stays dark.
 const TINT_ALPHA = 0.34;
 
 // -----------------------------------------------------------------------------
@@ -148,11 +153,15 @@ export class Atmosphere
 
     update (tick: number, deltaMs: number): void
     {
-        // 1. Update tint color from hour-of-day.
+        // 1. Update tint color from hour-of-day. setFillStyle is the public
+        // Phaser API for updating a Rectangle's color/alpha in place;
+        // writing fillColor directly updates the field but doesn't
+        // propagate through the renderer, so the screen stays whatever
+        // color the rectangle was constructed with.
         const hour = Atmosphere.hourFromTick(tick);
         const { r, g, b } = this.lerpTint(hour);
         const tintColor = (r << 16) | (g << 8) | b;
-        this.tintRect.fillColor = tintColor;
+        this.tintRect.setFillStyle(tintColor, TINT_ALPHA);
 
         // 2. Update leaves.
         const dt = deltaMs / 1000;

@@ -70,14 +70,26 @@ log('world scene ready');
 // Freeze time so the sim doesn't move while we line up the camera.
 await send('Runtime.evaluate', { expression: 'window.__sim && window.__sim.setSpeed(0)' });
 
-const TICKS_PER_DAY = 86400;
+// Sim's TICKS_PER_DAY = SECONDS_PER_DAY * SIM_TICKS_PER_SECOND = 24 * 60 = 1440.
+// (Not 86400 — that's wall-clock seconds per day. The screenshot script
+// was using 86400, which meant setTick(50400) for hour=14 silently landed
+// at a tick divisible by 1440 and atmosphere.hourFromTick returned 0, so
+// the tint never changed across hour args.)
+const TICKS_PER_DAY = 1440;
 const targetTick = Math.floor((hour / 24) * TICKS_PER_DAY);
 await send('Runtime.evaluate', { expression: `window.__sim.setTick(${targetTick})` });
 await send('Runtime.evaluate', { expression: `window.__cam && window.__cam.setZoom(${zoom})` });
 await wait(100);
 
-// Reveal fog so we can see the biome layout, then un-reveal later if we want.
-await send('Runtime.evaluate', { expression: 'window.__world && window.__world.revealAll && window.__world.revealAll()' });
+// Reveal fog so we can see the biome layout. The World scene exposes __fog
+// on window for screenshot tooling. We also patch fog.decay to a no-op so
+// the "revealed" tiles stay at level 2 (visible) instead of decaying to
+// level 1 (seen-but-fogged) on the next frame — otherwise the screenshot
+// captures the post-decay state where everything is half-fogged.
+await send('Runtime.evaluate', { expression: 'window.__fog && window.__fog.revealAll()' });
+await send('Runtime.evaluate', { expression: 'window.__fog.decay = function(){}' });
+await send('Runtime.evaluate', { expression: 'window.__fog.revealAll()' });
+await wait(150);
 
 // Pin the camera at the firepit for the duration of the capture. We freeze
 // the controller so WASD/edge-pan can't drift it.
