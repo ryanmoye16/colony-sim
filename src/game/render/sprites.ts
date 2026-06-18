@@ -907,32 +907,87 @@ const TILE_GRASS_SAND: SpriteDef = {
     },
 };
 
-// Wall — masonry pattern with shaded mortar
-const TILE_WALL: SpriteDef = {
-    pixels: [
-        'oooooooooooooooo',
-        'oHHHHHHHhoHHHHHo',
-        'oHhhhhhhHohhhhHo',
-        'oHhhhhhhHohhhhHo',
-        'oHhhhhhhHohhhhHo',
-        'oHhoHHHHHhoHHHHo',
-        'oHhoHHHHHhoHHHHo',
-        'oooooooooooooooo',
-        'oHHHHHhoHHHHHHHo',
-        'oHhhhhHohhhhhhHo',
-        'oHhhhhHohhhhhhHo',
-        'oHhhhhHohhhhhhHo',
-        'oHHHHHhoHHHHHHHo',
-        'oHHHHHhoHHHHHHHo',
-        'oooooooooooooooo',
-        'oooooooooooooooo',
-    ],
-    palette: {
+// Wall — masonry pattern. Procedural variants based on neighbor configuration.
+// Neighbor flags: N=8, E=4, S=2, W=1 → 0..15.
+// At exposed edges, a darker 'o' cap is added (top/bottom row or left/right col).
+function makeWallVariant (n: 0 | 1, e: 0 | 1, s: 0 | 1, w: 0 | 1): SpriteDef
+{
+    // Brick pattern base (no caps)
+    const base: string[] = [
+        'HHHHHHHHHHHHHHHH', // 0
+        'HhhhhhhhhhhhhhhH', // 1
+        'HhhhhhhhhhhhhhhH', // 2
+        'HhhhhhhhhhhhhhhH', // 3
+        'HhhhhhhhhhhhhhhH', // 4
+        'HhHhhhhhhhhhhHh', // 5 (offset brick)
+        'HhHhhhhhhhhhhHh', // 6
+        'HHHHHHHHHHHHHHHH', // 7 (horizontal mortar)
+        'HhhhhhhhhhhhhhhH', // 8
+        'HhhhhhhhhhhhhhhH', // 9
+        'HhHhhhhhhhhhhHh', // 10
+        'HhHhhhhhhhhhhHh', // 11
+        'HhhhhhhhhhhhhhhH', // 12
+        'HHHHHHHHHHHHHHHH', // 13 (mortar)
+        'HHHHHHHHHHHHHHHH', // 14
+        'HHHHHHHHHHHHHHHH', // 15
+    ];
+    // Add caps (o) on edges that have no wall neighbor
+    const out = base.map((r) => r.split(''));
+    if (!n) for (let x = 0; x < 16; x++) out[0][x]  = 'o';
+    if (!s) for (let x = 0; x < 16; x++) out[15][x] = 'o';
+    if (!w) for (let y = 0; y < 16; y++) out[y][0]  = 'o';
+    if (!e) for (let y = 0; y < 16; y++) out[y][15] = 'o';
+    // Always have an outline at the very corners (so cap is visible)
+    return { pixels: out.map((r) => r.join('')), palette: {
         o: PALETTE.stoneMShd,
         H: PALETTE.stoneMHi,
         h: PALETTE.stoneMBase,
-    },
-};
+    } };
+}
+
+const TILE_WALL = makeWallVariant(1, 0, 1, 0);
+const TILE_WALL_END_N   = makeWallVariant(0, 0, 1, 0);
+const TILE_WALL_END_E   = makeWallVariant(1, 0, 1, 1);
+const TILE_WALL_END_S   = makeWallVariant(1, 0, 0, 0);
+const TILE_WALL_END_W   = makeWallVariant(1, 1, 1, 0);
+const TILE_WALL_CORNER_NE = makeWallVariant(0, 0, 1, 1);
+const TILE_WALL_CORNER_NW = makeWallVariant(0, 1, 1, 0);
+const TILE_WALL_CORNER_SE = makeWallVariant(1, 0, 0, 1);
+const TILE_WALL_CORNER_SW = makeWallVariant(1, 1, 0, 0);
+const TILE_WALL_T_N   = makeWallVariant(1, 0, 0, 1);
+const TILE_WALL_T_E   = makeWallVariant(1, 1, 1, 1);
+const TILE_WALL_T_S   = makeWallVariant(0, 0, 0, 1);
+const TILE_WALL_T_W   = makeWallVariant(0, 1, 1, 1);
+const TILE_WALL_CROSS = makeWallVariant(0, 0, 0, 0);
+const TILE_WALL_STRAIGHT_H = makeWallVariant(1, 0, 1, 0); // same as TILE_WALL
+const TILE_WALL_STRAIGHT_V = makeWallVariant(0, 1, 0, 1);
+
+// Map (n,e,s,w) booleans to a wall texture key.
+export function WALL_TEXTURE_KEY (n: number, e: number, s: number, w: number): string
+{
+    // n=8, e=4, s=2, w=1
+    const code = (n ? 8 : 0) | (e ? 4 : 0) | (s ? 2 : 0) | (w ? 1 : 0);
+    switch (code)
+    {
+        case 0b0000: return 'tile-wall-cross';   // all 4 sides exposed (isolated, no cap) - actually this is the cap-on-all-sides
+        case 0b0001: return 'tile-wall-end-e';    // W only
+        case 0b0010: return 'tile-wall-end-w';    // S only
+        case 0b0011: return 'tile-wall-corner-se'; // S+W
+        case 0b0100: return 'tile-wall-end-s';    // E only
+        case 0b0101: return 'tile-wall-straight-h'; // E+W
+        case 0b0110: return 'tile-wall-corner-sw'; // S+E
+        case 0b0111: return 'tile-wall-t-e';      // S+E+W (no N)
+        case 0b1000: return 'tile-wall-end-n';    // N only
+        case 0b1001: return 'tile-wall-corner-ne'; // N+W
+        case 0b1010: return 'tile-wall-straight-v'; // N+S
+        case 0b1011: return 'tile-wall-t-w';      // N+S+W (no E)
+        case 0b1100: return 'tile-wall-corner-nw'; // N+E
+        case 0b1101: return 'tile-wall-t-s';      // N+E+W (no S)
+        case 0b1110: return 'tile-wall-t-n';      // N+E+S (no W)
+        case 0b1111: return 'tile-wall';          // all sides connect
+        default: return 'tile-wall';
+    }
+}
 
 // Floor — wood plank pattern with shaded gaps
 const TILE_FLOOR: SpriteDef = {
@@ -1176,6 +1231,21 @@ export function registerAllPixelSprites(scene: Scene): void {
     registerPixelSprite(scene, 'tile-sand-water', TILE_SAND_WATER);
     registerPixelSprite(scene, 'tile-grass-sand', TILE_GRASS_SAND);
     registerPixelSprite(scene, 'tile-wall', TILE_WALL);
+    registerPixelSprite(scene, 'tile-wall-straight-h', TILE_WALL_STRAIGHT_H);
+    registerPixelSprite(scene, 'tile-wall-straight-v', TILE_WALL_STRAIGHT_V);
+    registerPixelSprite(scene, 'tile-wall-end-n', TILE_WALL_END_N);
+    registerPixelSprite(scene, 'tile-wall-end-e', TILE_WALL_END_E);
+    registerPixelSprite(scene, 'tile-wall-end-s', TILE_WALL_END_S);
+    registerPixelSprite(scene, 'tile-wall-end-w', TILE_WALL_END_W);
+    registerPixelSprite(scene, 'tile-wall-corner-ne', TILE_WALL_CORNER_NE);
+    registerPixelSprite(scene, 'tile-wall-corner-nw', TILE_WALL_CORNER_NW);
+    registerPixelSprite(scene, 'tile-wall-corner-se', TILE_WALL_CORNER_SE);
+    registerPixelSprite(scene, 'tile-wall-corner-sw', TILE_WALL_CORNER_SW);
+    registerPixelSprite(scene, 'tile-wall-t-n', TILE_WALL_T_N);
+    registerPixelSprite(scene, 'tile-wall-t-e', TILE_WALL_T_E);
+    registerPixelSprite(scene, 'tile-wall-t-s', TILE_WALL_T_S);
+    registerPixelSprite(scene, 'tile-wall-t-w', TILE_WALL_T_W);
+    registerPixelSprite(scene, 'tile-wall-cross', TILE_WALL_CROSS);
     registerPixelSprite(scene, 'tile-floor', TILE_FLOOR);
     registerPixelSprite(scene, 'tile-tilled', TILE_TILLED);
 
