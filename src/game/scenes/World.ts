@@ -746,6 +746,15 @@ export class World extends Scene
         const sprite = this.add.image(px, py, resolveTextureKey(render.textureKey));
         this.settlerContainer.add(sprite);
         render.gameObject = sprite;
+        // Carry sprite mirrors the one created in createSettler — render-sync
+        // reads Inventory and shows it when the settler is hauling. Hidden
+        // by default; will appear next update tick if the settler is loaded
+        // mid-haul with Inventory.carriedType set.
+        const carry = this.add.image(px, py - TILE_SIZE * 0.6, ITEM_TEXTURE_KEYS.food ?? '');
+        carry.setDisplaySize(TILE_SIZE * 0.55, TILE_SIZE * 0.55);
+        carry.setVisible(false);
+        this.settlerContainer.add(carry);
+        render.carrySprite = carry;
     }
 
     private handleClick (pointer: Phaser.Input.Pointer): void

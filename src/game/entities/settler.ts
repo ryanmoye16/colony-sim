@@ -6,7 +6,7 @@ import { isWalkable } from '../world/tile';
 import type { World as WorldModel } from '../world/world';
 import { TILE_SIZE } from '../config/game.config';
 import type { SettlerShadows } from '../render/shadows';
-import { resolveTextureKey } from '../render/sprites';
+import { resolveTextureKey, ITEM_TEXTURE_KEYS } from '../render/sprites';
 
 export function createSettler (
     ecs: ECSWorld,
@@ -35,7 +35,17 @@ export function createSettler (
     const sprite = scene.add.image(px, py, resolvedKey);
     container.add(sprite);
 
-    const render: RenderData = { size: TILE_SIZE, gameObject: sprite, textureKey };
+    // Carry sprite — a small item graphic above the settler's head that
+    // becomes visible when the settler picks something up. Hidden by
+    // default; render-sync reads Inventory.carriedType and updates it.
+    // Sized smaller than the settler (about half a tile) so it reads as
+    // a held object, not a second body.
+    const carrySprite = scene.add.image(px, py - TILE_SIZE * 0.6, ITEM_TEXTURE_KEYS.food ?? resolvedKey);
+    carrySprite.setDisplaySize(TILE_SIZE * 0.55, TILE_SIZE * 0.55);
+    carrySprite.setVisible(false);
+    container.add(carrySprite);
+
+    const render: RenderData = { size: TILE_SIZE, gameObject: sprite, textureKey, carrySprite };
     ecs.addComponent(id, Render, render);
 
     const ai: AIData = { state: 'wandering', nextMoveAt: 0, path: null, pathIndex: 0, facing: 's' };

@@ -35,6 +35,7 @@ export interface RenderData
     size: number;
     gameObject?: GameObjects.GameObject;
     textureKey: string;
+    carrySprite?: GameObjects.GameObject;
 }
 
 export interface NeedsData

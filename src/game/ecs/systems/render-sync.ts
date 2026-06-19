@@ -1,11 +1,11 @@
 import type { Scene } from 'phaser';
 import type { System } from './index';
 import type { ECSWorld } from '../world';
-import { Position, Render, Life, AI } from '../components';
-import type { PositionData, RenderData, LifeData, AIData } from '../components';
+import { Position, Render, Life, AI, Inventory } from '../components';
+import type { PositionData, RenderData, LifeData, AIData, InventoryData } from '../components';
 import { TILE_SIZE, getAgeStage, LIFESPAN_TICKS } from '../../config/game.config';
 import type { SettlerShadows } from '../../render/shadows';
-import { resolveTextureKey } from '../../render/sprites';
+import { resolveTextureKey, ITEM_TEXTURE_KEYS } from '../../render/sprites';
 
 const BASE_SIZE = TILE_SIZE * 0.95;
 
@@ -71,6 +71,35 @@ export class RenderSyncSystem implements System
             if (this.shadows)
             {
                 this.shadows.update(entity, feetX, feetY);
+            }
+
+            // Carry sprite — if the settler has picked something up, show
+            // the matching item sprite above their head. Position follows
+            // the settler body so it bobs along with walking. Hidden when
+            // the inventory is empty so the settler reads as "unburdened."
+            if (render.carrySprite)
+            {
+                const carry = render.carrySprite as unknown as Phaser.GameObjects.Image;
+                const inv = ecs.getComponent<InventoryData>(entity, Inventory);
+                if (inv && inv.carriedType && ITEM_TEXTURE_KEYS[inv.carriedType])
+                {
+                    const targetKey = ITEM_TEXTURE_KEYS[inv.carriedType]!;
+                    if (carry.texture.key !== targetKey && this.scene.textures.exists(targetKey))
+                    {
+                        carry.setTexture(targetKey);
+                    }
+                    carry.setVisible(true);
+                    // Slight independent bob so the carried item floats a
+                    // little, separate from the walk bob — reads as
+                    // "carried with effort" rather than rigidly attached.
+                    const carryBob = Math.sin(tick * 0.18 + entity * 0.7) * 1.2;
+                    carry.x = feetX;
+                    carry.y = feetY + bob - TILE_SIZE * 0.55 + carryBob;
+                }
+                else
+                {
+                    carry.setVisible(false);
+                }
             }
 
             liveEntities.add(entity);
