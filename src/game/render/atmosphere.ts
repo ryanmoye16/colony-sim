@@ -51,13 +51,15 @@ const TINT_KEYS: TintKey[] = [
     { hour: 24, r:  16, g:  22, b:  56 }, // back to deep night
 ];
 
-// Tint alpha — how strong the time-of-day color overlays the world. 0.50
-// made the screen unmistakable at every hour but washed out the underlying
-// tile art at midday (the cream tint pushed everything to a yellow-green
-// that lost the forest-vs-grass contrast). 0.34 is the sweet spot — the
-// hour reads on screen (dawn vs dusk vs night is clear) while grass stays
-// green and forest stays dark.
-const TINT_ALPHA = 0.34;
+// Tint alpha — how strong the time-of-day color overlays the world. The
+// hour curve is multiplied by this base value. At midday the curve is
+// near zero (no tint at all, since the daytime palette is light enough
+// to fight the underlying tile art), but at night we lean much harder
+// into the cool blue — without strong night the world reads as "tinted
+// day" rather than "after dark", and the fireflies have nothing to
+// glow against.
+const TINT_ALPHA_BASE = 0.36;
+const TINT_ALPHA_NIGHT = 0.62;
 
 // -----------------------------------------------------------------------------
 // Vignette
@@ -87,6 +89,59 @@ const LEAF_SPEED_MIN = 8;   // px/sec
 const LEAF_SPEED_MAX = 22;  // px/sec
 const LEAF_VARIANTS = ['particle-leaf-green', 'particle-leaf-orange', 'particle-leaf-brown'];
 
+// -----------------------------------------------------------------------------
+// Fireflies
+// -----------------------------------------------------------------------------
+// Small bright dots that drift in the air over the world. They're world-
+// anchored (scrollFactor 1) so they appear as part of the scene, not the
+// HUD. Each has its own drift direction, blink period, and a fade-in
+// radius around its current position. Visibility is gated by hour-of-day:
+// full strength at dusk/night, hidden during the day, with a smooth ramp.
+
+const FIREFLY_COUNT = 50;
+const FIREFLY_RADIUS_PX = 30;   // wander radius around home point
+const FIREFLY_SPEED_MIN = 1.0;
+const FIREFLY_SPEED_MAX = 3.0;
+const FIREFLY_BLINK_PERIOD_MIN = 1400;  // ms
+const FIREFLY_BLINK_PERIOD_MAX = 3600;
+const FIREFLY_PEAK_ALPHA = 0.95;        // max alpha when active and dark
+// Alpha is multiplied by this night factor, which is 1.0 at dusk/night and
+// drops to 0 at midday. Smoothstep gives a gentle dawn/dusk fade.
+const FIREFLY_NIGHT_PEAK = 1.0;
+const FIREFLY_DUSK_START = 16;   // hour: visibility begins rising
+const FIREFLY_DUSK_FULL = 19;    // hour: fully visible
+const FIREFLY_DAWN_FULL = 5;     // hour: still fully visible
+const FIREFLY_DAWN_END = 8;      // hour: back to invisible
+
+interface FireflyState {
+    sprite: Phaser.GameObjects.Image;
+    homeX: number;
+    homeY: number;
+    vx: number;
+    vy: number;
+    bobPhase: number;
+    bobPeriod: number;  // ms per blink cycle
+    blinkPhase: number;
+}
+
+function nightFactor (hour: number): number
+{
+    // Smoothstep between DUSK_START->DUSK_FULL and DAWN_FULL->DAWN_END.
+    // Returns 0..1, peaks at FIREFLY_NIGHT_PEAK during the dark hours.
+    if (hour >= FIREFLY_DUSK_START && hour <= 24) {
+        const t = (hour - FIREFLY_DUSK_START) / (24 - FIREFLY_DUSK_START);
+        return FIREFLY_NIGHT_PEAK * t * t * (3 - 2 * t);
+    }
+    if (hour >= 0 && hour < FIREFLY_DAWN_END) {
+        // Two phases: full at DAWN_FULL, fading to 0 at DAWN_END.
+        if (hour <= FIREFLY_DAWN_FULL) return FIREFLY_NIGHT_PEAK;
+        const t = (hour - FIREFLY_DAWN_FULL) / (FIREFLY_DAWN_END - FIREFLY_DAWN_FULL);
+        return FIREFLY_NIGHT_PEAK * (1 - t) * (1 - t) * (3 - 2 * (1 - t));
+    }
+    if (hour >= FIREFLY_DUSK_FULL) return FIREFLY_NIGHT_PEAK;
+    return 0;
+}
+
 interface LeafState {
     sprite: Phaser.GameObjects.Image;
     vx: number;
@@ -104,6 +159,7 @@ export class Atmosphere
     private readonly tintRect: Phaser.GameObjects.Rectangle;
     private readonly vignette: Phaser.GameObjects.Graphics;
     private readonly leaves: LeafState[] = [];
+    private readonly fireflies: FireflyState[] = [];
     private readonly rng: () => number;
 
     /**
@@ -125,7 +181,7 @@ export class Atmosphere
         // at depth 50 (above world/items/settlers, below HUD which sits at
         // depth 900+). Setting origin to (0,0) and scrollFactor to 0 means
         // it always covers the visible viewport.
-        this.tintRect = scene.add.rectangle(0, 0, cam.width, cam.height, 0x1a1f3a, TINT_ALPHA);
+        this.tintRect = scene.add.rectangle(0, 0, cam.width, cam.height, 0x1a1f3a, TINT_ALPHA_BASE);
         this.tintRect.setOrigin(0, 0);
         this.tintRect.setScrollFactor(0);
         this.tintRect.setDepth(50);
@@ -153,6 +209,29 @@ export class Atmosphere
             this.leaves.push(this.spawnLeaf(sprite, true));
         }
 
+        // Fireflies. World-anchored small glow points that fade in at dusk
+        // and out at dawn. Sprites start hidden — the night factor decides
+        // when they become visible. We distribute them across a wide area
+        // so the player sees a handful of them in any given viewport.
+        this.ensureFireflyTexture(scene);
+        for (let i = 0; i < FIREFLY_COUNT; i++)
+        {
+            const sprite = scene.add.image(0, 0, 'firefly-pixel');
+            sprite.setOrigin(0.5, 0.5);
+            sprite.setScrollFactor(1);
+            sprite.setDepth(57);
+            sprite.setBlendMode(BlendModes.ADD);
+            sprite.setAlpha(0);
+            const ff: FireflyState = {
+                sprite,
+                homeX: 0, homeY: 0,
+                vx: 0, vy: 0,
+                bobPhase: 0, bobPeriod: 1, blinkPhase: 0,
+            };
+            this.fireflies.push(ff);
+            this.respawnFirefly(ff);
+        }
+
         scene.scale.on('resize', () => {
             this.tintRect.setSize(cam.width, cam.height);
             this.drawVignette();
@@ -169,7 +248,15 @@ export class Atmosphere
         const hour = Atmosphere.hourFromTick(tick);
         const { r, g, b } = this.lerpTint(hour);
         const tintColor = (r << 16) | (g << 8) | b;
-        this.tintRect.setFillStyle(tintColor, TINT_ALPHA);
+        // Alpha scales with darkness so the day stays vibrant (low alpha
+        // so the warm tint doesn't wash out grass/forest contrast) and
+        // night actually reads as night (high alpha so the cool blue
+        // dominates the screen). Same alpha at all hours used to make
+        // night feel like "tinted day" — now the dark hours get a
+        // noticeably heavier wash.
+        const darkness = this.hourDarkness(hour);
+        const alpha = TINT_ALPHA_BASE + (TINT_ALPHA_NIGHT - TINT_ALPHA_BASE) * darkness;
+        this.tintRect.setFillStyle(tintColor, alpha);
 
         // 2. Update leaves.
         const dt = deltaMs / 1000;
@@ -197,6 +284,37 @@ export class Atmosphere
                 this.respawnLeaf(leaf, false);
             }
         }
+
+        // 3. Update fireflies. Night factor scales the whole system's alpha
+        // so they fade in at dusk and out at dawn. Each firefly has its own
+        // blink phase on top of that, producing a twinkling field rather
+        // than a uniform glow.
+        const night = nightFactor(hour);
+        for (const ff of this.fireflies)
+        {
+            // Drift around home, with direction re-rolled when the wander
+            // radius is exceeded so the firefly orbits a fixed area
+            // instead of sailing off into the void.
+            ff.sprite.x += ff.vx * dt;
+            ff.sprite.y += ff.vy * dt;
+            const dx = ff.sprite.x - ff.homeX;
+            const dy = ff.sprite.y - ff.homeY;
+            if (dx * dx + dy * dy > FIREFLY_RADIUS_PX * FIREFLY_RADIUS_PX)
+            {
+                this.respawnFirefly(ff);
+                continue;
+            }
+            // Blink envelope: a sin wave with a moderate peak. Squared
+            // for a softer transition than sin^3 — at any moment roughly
+            // half the fireflies are in their bright half, so the field
+            // reads as a continuous twinkling glow rather than a few
+            // bright dots on a dark background. Per-firefly phase stops
+            // them from beating in unison.
+            const blinkT = (tick + ff.blinkPhase) / ff.bobPeriod;
+            const blink = Math.max(0, Math.sin(blinkT * Math.PI * 2));
+            const blinkSoft = blink * blink; // soften
+            ff.sprite.setAlpha(night * FIREFLY_PEAK_ALPHA * blinkSoft);
+        }
     }
 
     destroy (): void
@@ -205,11 +323,27 @@ export class Atmosphere
         this.vignette.destroy();
         for (const leaf of this.leaves) leaf.sprite.destroy();
         this.leaves.length = 0;
+        for (const ff of this.fireflies) ff.sprite.destroy();
+        this.fireflies.length = 0;
     }
 
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
+
+    // Returns 0..1, where 0 is full daylight and 1 is deepest night. Used
+    // to scale the tint alpha so the day keeps grass/forest contrast and
+    // the night actually looks like night.
+    private hourDarkness (hour: number): number
+    {
+        // Sample the luma of the current tint keyframe color as the
+        // darkness metric — black/blue is dark, gold/cream is light. This
+        // automatically tracks whatever palette we set without needing a
+        // separate hour schedule.
+        const { r, g, b } = this.lerpTint(hour);
+        const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        return Math.max(0, Math.min(1, 1 - luma));
+    }
 
     private lerpTint (hour: number): { r: number; g: number; b: number }
     {
@@ -314,5 +448,46 @@ export class Atmosphere
             lifetime: LEAF_LIFETIME_MS * (0.8 + this.rng() * 0.4),
             age: initial ? this.rng() * LEAF_LIFETIME_MS * 0.5 : 0,
         };
+    }
+
+    // Place a firefly at a random world-space position with a random drift
+    // direction. The wander radius is enforced each frame, so the firefly
+    // stays near its home point — orbit behavior, not a single flyaway
+    // trajectory. We distribute home points across a wide area so that
+    // wherever the player pans the camera, a few fireflies are visible.
+    private respawnFirefly (ff: FireflyState): void
+    {
+        // Spawn within a generous world-space area centered on (128,128)
+        // with ~100 tile radius. The exact extent doesn't matter — the
+        // point is to spread fireflies across a wide area so the camera
+        // always frames a handful of them.
+        ff.homeX = 128 * 16 + (this.rng() - 0.5) * 200 * 16;
+        ff.homeY = 128 * 16 + (this.rng() - 0.5) * 200 * 16;
+        // Random drift direction at low speed
+        const angle = this.rng() * Math.PI * 2;
+        const speed = FIREFLY_SPEED_MIN + this.rng() * (FIREFLY_SPEED_MAX - FIREFLY_SPEED_MIN);
+        ff.vx = Math.cos(angle) * speed;
+        ff.vy = Math.sin(angle) * speed;
+        ff.bobPeriod = FIREFLY_BLINK_PERIOD_MIN + this.rng() * (FIREFLY_BLINK_PERIOD_MAX - FIREFLY_BLINK_PERIOD_MIN);
+        ff.blinkPhase = this.rng() * ff.bobPeriod;
+        ff.bobPhase = this.rng() * Math.PI * 2;
+        ff.sprite.x = ff.homeX;
+        ff.sprite.y = ff.homeY;
+    }
+
+    // Shared 2x2 yellow-green pixel for fireflies. Stored once so all
+    // fireflies share a single GL texture.
+    private ensureFireflyTexture (scene: Scene): void
+    {
+        if (scene.textures.exists('firefly-pixel')) return;
+        const c = document.createElement('canvas');
+        c.width = 3;
+        c.height = 3;
+        const ctx = c.getContext('2d')!;
+        // Yellow-green, slightly warm so it reads as warm light against
+        // the cool night tint. Bright enough to glow under ADD blend.
+        ctx.fillStyle = '#dfff8a';
+        ctx.fillRect(0, 0, 3, 3);
+        scene.textures.addCanvas('firefly-pixel', c);
     }
 }
