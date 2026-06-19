@@ -110,6 +110,43 @@ interface StarState {
 }
 
 // -----------------------------------------------------------------------------
+// Ground mist (dawn fog)
+// -----------------------------------------------------------------------------
+// A few soft white rectangles that drift slowly across the bottom half of
+// the viewport, fading in at dawn (5am) and out by mid-morning (10am).
+// The fog reads as low-lying ground mist catching the first light. Sits
+// at depth 48 (above world, below tint) so the time-of-day tint desaturates
+// it consistently with the rest of the world.
+
+const MIST_WISP_COUNT = 8;
+const MIST_WISP_HEIGHT = 80;        // px tall
+const MIST_WISP_BASE_ALPHA = 0.32;  // peak per-wisp alpha
+const MIST_DRIFT_SPEED = 4;         // px/sec horizontal drift
+
+interface MistWispState {
+    sprite: Phaser.GameObjects.Image;
+    driftOffset: number;  // individual phase for the drift
+}
+
+function morningFactor (hour: number): number
+{
+    // Smoothstep from 0 at 4am to 1 at 6am, hold until 8am, smoothstep
+    // back to 0 at 10am. Reads as "morning fog".
+    if (hour >= 4 && hour < 6)
+    {
+        const t = (hour - 4) / 2;
+        return t * t * (3 - 2 * t);
+    }
+    if (hour >= 6 && hour < 8) return 1;
+    if (hour >= 8 && hour < 10)
+    {
+        const t = (hour - 8) / 2;
+        return 1 - t * t * (3 - 2 * t);
+    }
+    return 0;
+}
+
+// -----------------------------------------------------------------------------
 // Fireflies
 // -----------------------------------------------------------------------------
 // Small bright dots that drift in the air over the world. They're world-
@@ -181,6 +218,7 @@ export class Atmosphere
     private readonly leaves: LeafState[] = [];
     private readonly fireflies: FireflyState[] = [];
     private readonly stars: StarState[] = [];
+    private readonly mistWisps: MistWispState[] = [];
     private readonly rng: () => number;
 
     /**
@@ -280,6 +318,26 @@ export class Atmosphere
             this.stars.push(star);
         }
 
+        // Ground mist wisps. Soft white rectangles that drift across the
+        // bottom half of the viewport. Each wisp is wide and low (3x
+        // viewport wide, MIST_WISP_HEIGHT tall) so as one drifts off the
+        // right edge another drifts on from the left. Visibility scales
+        // with morning factor (peak 6-8am, fade out by 10am).
+        this.ensureMistTexture(scene);
+        for (let i = 0; i < MIST_WISP_COUNT; i++)
+        {
+            const sprite = scene.add.image(0, 0, 'mist-wisp');
+            sprite.setOrigin(0, 0);
+            sprite.setScrollFactor(0);
+            sprite.setDepth(48);
+            sprite.setBlendMode(BlendModes.NORMAL);
+            // Scale the 1px-wide texture to 3×viewport width so the soft
+            // edges span the entire drift strip
+            sprite.setDisplaySize(cam.width * 3, MIST_WISP_HEIGHT);
+            sprite.setAlpha(0);
+            this.mistWisps.push({ sprite, driftOffset: this.rng() * cam.width * 3 });
+        }
+
         scene.scale.on('resize', () => {
             this.tintRect.setSize(cam.width, cam.height);
             this.drawVignette();
@@ -374,6 +432,26 @@ export class Atmosphere
             const twinkle = 0.6 + 0.4 * Math.sin(twinkleT * Math.PI * 2);
             star.sprite.setAlpha(night * STAR_PEAK_ALPHA * star.baseAlpha * twinkle);
         }
+
+        // Ground mist. Drift each wisp right; when it leaves the right
+        // edge of the extended strip, wrap it to the left. Morning factor
+        // gates overall visibility so the fog rolls in at dawn and burns
+        // off by mid-morning.
+        const morning = morningFactor(hour);
+        const mistDt = deltaMs / 1000;
+        for (const wisp of this.mistWisps)
+        {
+            wisp.driftOffset += MIST_DRIFT_SPEED * mistDt;
+            const w = cam.width;
+            const stripWidth = w * 3;
+            if (wisp.driftOffset > stripWidth) wisp.driftOffset -= stripWidth;
+            // Anchor at left edge of viewport, vertical position varies
+            // per-wisp so the fog has depth
+            const wispY = (wisp.driftOffset * 31) % (w - MIST_WISP_HEIGHT);
+            wisp.sprite.x = wisp.driftOffset - w;
+            wisp.sprite.y = wispY;
+            wisp.sprite.setAlpha(morning * MIST_WISP_BASE_ALPHA);
+        }
     }
 
     destroy (): void
@@ -386,6 +464,8 @@ export class Atmosphere
         this.fireflies.length = 0;
         for (const star of this.stars) star.sprite.destroy();
         this.stars.length = 0;
+        for (const wisp of this.mistWisps) wisp.sprite.destroy();
+        this.mistWisps.length = 0;
     }
 
     // -------------------------------------------------------------------------
@@ -565,5 +645,27 @@ export class Atmosphere
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, 1, 1);
         scene.textures.addCanvas('star-pixel', c);
+    }
+
+    // Shared soft white rectangle for the ground mist wisps. The rectangle
+    // is 1px wide × MIST_WISP_HEIGHT tall; the sprite is scaled to be
+    // 3×viewport wide so a single texture fills the drift strip. Soft top
+    // and bottom edges (alpha gradient) so the wisp doesn't have a hard
+    // border — reads as fog rather than a banner.
+    private ensureMistTexture (scene: Scene): void
+    {
+        if (scene.textures.exists('mist-wisp')) return;
+        const c = document.createElement('canvas');
+        c.width = 1;
+        c.height = MIST_WISP_HEIGHT;
+        const ctx = c.getContext('2d')!;
+        const grad = ctx.createLinearGradient(0, 0, 0, MIST_WISP_HEIGHT);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        grad.addColorStop(0.4, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.6, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1, MIST_WISP_HEIGHT);
+        scene.textures.addCanvas('mist-wisp', c);
     }
 }
