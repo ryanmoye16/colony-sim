@@ -184,6 +184,12 @@ export class WorldRenderer
             this.drawBiomeHaze(ctx, x, y, world);
         }
 
+        // Per-tile micro-detail: grass-blade wisps, dirt pebbles, stone cracks.
+        // Painted on top of the sprite so the details actually read. Drawn
+        // deterministically from (x, y, tile-type) so the same tile always
+        // gets the same details and tile.changed doesn't shuffle them.
+        this.drawTileDetails(ctx, x, y, type);
+
         // Bake shoreline foam on water tiles where they meet land. Painted
         // on top so the white pixels actually show against the deep blue
         // water (without that, foam under the sprite is invisible). Sits in
@@ -192,6 +198,107 @@ export class WorldRenderer
         if (type === TileType.Water || type === TileType.SandWater)
         {
             this.drawShorelineFoam(ctx, x, y, world);
+        }
+    }
+
+    // Paint per-tile micro-detail on top of the sprite. Each tile type gets
+    // a few deterministic decorations: grass gets small tufts of darker/lighter
+    // green, dirt gets scattered pebbles, stone gets hairline cracks. The
+    // details are subtle — alpha 0.3-0.6 on 1-2px shapes — and only fire on
+    // a fraction of tiles so the world reads as natural variety rather than
+    // a uniform texture overlay.
+    private drawTileDetails (ctx: CanvasRenderingContext2D, x: number, y: number, type: TileType): void
+    {
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+
+        // Deterministic noise from tile coords. Same (x, y, type) → same
+        // details every redraw, so tile.changed doesn't shuffle them.
+        const baseSeed = ((x * 73856093) ^ (y * 19349663) ^ (type * 83492791)) >>> 0;
+        const rand = (i: number) =>
+        {
+            let s = (baseSeed + i * 1597334677) | 0;
+            s = (s ^ (s >>> 13)) * 1274126177 | 0;
+            return ((s ^ (s >>> 16)) >>> 0) / 0xffffffff;
+        };
+
+        switch (type)
+        {
+        case TileType.Grass:
+        {
+            // 2-3 small grass-blade tufts per tile. Lighter + darker green
+            // mixed so each tile reads as a different patch.
+            const count = 2 + Math.floor(rand(0) * 2);
+            for (let i = 0; i < count; i++)
+            {
+                const cx = px + Math.floor(rand(i + 1) * 14) + 1;
+                const cy = py + Math.floor(rand(i + 5) * 14) + 1;
+                const dark = rand(i + 9) > 0.5;
+                ctx.fillStyle = dark ? 'rgba(60, 100, 50, 0.55)' : 'rgba(140, 200, 100, 0.45)';
+                ctx.fillRect(cx, cy, 1, 2);
+                ctx.fillRect(cx + 1, cy, 1, 1);
+            }
+            break;
+        }
+        case TileType.Dirt:
+        {
+            // Scattered pebbles and dirt clumps. Mostly 1px dots with rare 2px
+            // clusters. Skipped on ~30% of tiles to keep density modest.
+            if (rand(0) > 0.3) break;
+            const count = 1 + Math.floor(rand(1) * 3);
+            for (let i = 0; i < count; i++)
+            {
+                const cx = px + Math.floor(rand(i + 1) * 14) + 1;
+                const cy = py + Math.floor(rand(i + 5) * 14) + 1;
+                const dark = rand(i + 9) > 0.5;
+                ctx.fillStyle = dark ? 'rgba(80, 50, 35, 0.6)' : 'rgba(200, 175, 145, 0.4)';
+                ctx.fillRect(cx, cy, 1, 1);
+                if (rand(i + 13) > 0.7)
+                {
+                    ctx.fillRect(cx + 1, cy, 1, 1);
+                }
+            }
+            break;
+        }
+        case TileType.Sand:
+        {
+            // Tiny sand-grain specks. Very subtle.
+            if (rand(0) > 0.4) break;
+            const count = 2 + Math.floor(rand(1) * 3);
+            for (let i = 0; i < count; i++)
+            {
+                const cx = px + Math.floor(rand(i + 1) * 14) + 1;
+                const cy = py + Math.floor(rand(i + 5) * 14) + 1;
+                ctx.fillStyle = 'rgba(180, 155, 115, 0.5)';
+                ctx.fillRect(cx, cy, 1, 1);
+            }
+            break;
+        }
+        case TileType.Wall:
+        {
+            // Hairline cracks on stone walls. A short 1-2px line at a
+            // random angle. Only ~25% of wall tiles get a crack to avoid
+            // making every wall look fractured.
+            if (rand(0) > 0.25) break;
+            const sx = px + Math.floor(rand(1) * 12) + 2;
+            const sy = py + Math.floor(rand(2) * 12) + 2;
+            const len = 2 + Math.floor(rand(3) * 3); // 2-4 px
+            const vertical = rand(4) > 0.5;
+            ctx.fillStyle = 'rgba(20, 12, 28, 0.65)';
+            if (vertical)
+            {
+                ctx.fillRect(sx, sy, 1, len);
+                if (rand(5) > 0.5) ctx.fillRect(sx + 1, sy + len - 1, 1, 1);
+            }
+            else
+            {
+                ctx.fillRect(sx, sy, len, 1);
+                if (rand(5) > 0.5) ctx.fillRect(sx + len - 1, sy + 1, 1, 1);
+            }
+            break;
+        }
+        default:
+            break;
         }
     }
 
