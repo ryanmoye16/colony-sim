@@ -27,7 +27,13 @@ export class RenderSyncSystem implements System
 
             const ai = ecs.getComponent<AIData>(entity, AI);
             const moving = !!(ai?.path && ai.pathIndex < ai.path.length && ai.state !== 'wandering');
-            const bob = moving ? Math.sin(tick * 0.35) * (TILE_SIZE * 0.06) : 0;
+            // Walking bob is large and lively; idle breath is a tiny slow
+            // oscillation so even stationary settlers feel like they're
+            // breathing. Combined with walking bob when in motion so the
+            // settler never goes fully still.
+            const walkBob = moving ? Math.sin(tick * 0.35) * (TILE_SIZE * 0.06) : 0;
+            const breathBob = Math.sin(tick * 0.08 + entity * 0.13) * (TILE_SIZE * 0.012);
+            const bob = walkBob + breathBob;
 
             const feetX = pos.tx * TILE_SIZE + TILE_SIZE / 2;
             const feetY = pos.ty * TILE_SIZE + TILE_SIZE / 2;
