@@ -63,6 +63,8 @@ export class World extends Scene
     private stockpile: { tx: number; ty: number } | null = null;
     private lastSeason: number = -1;
     private itemMarkers: Map<number, GameObjects.Image> = new Map();
+    private itemBobPhases: Map<number, number> = new Map();
+    private itemBobSeeds: Map<number, number> = new Map();
     private jobQueue: JobQueue | null = null;
     private mineWorkGiver: MineWorkGiver | null = null;
     private haulWorkGiver: HaulWorkGiver | null = null;
@@ -361,6 +363,7 @@ export class World extends Scene
             this.wander?.update(this.ecs, tick, delta);
             this.lifeSystem?.update(this.ecs, tick);
             this.renderSync?.update(this.ecs, tick, delta);
+            this.updateItemBobs(tick);
             if (tick % 60 === 0)
             {
                 this.chronicleUI?.refresh();
@@ -463,8 +466,16 @@ export class World extends Scene
             key,
         );
         marker.setDisplaySize(TILE_SIZE, TILE_SIZE);
+        // Stash the rest Y on the sprite so the bob loop can compute
+        // marker.y = baseY + bob each frame without losing the anchor.
+        (marker as unknown as { _baseY: number })._baseY = item.ty * TILE_SIZE + TILE_SIZE / 2;
         this.itemContainer?.add(marker);
         this.itemMarkers.set(item.id, marker);
+        // Per-item bob phase so they don't beat in unison. Seed from the
+        // item id (which is a stable integer) for fully deterministic
+        // animation that resumes the same on reload.
+        this.itemBobPhases.set(item.id, (item.id * 0.6180339887) % (Math.PI * 2));
+        this.itemBobSeeds.set(item.id, item.id);
     }
 
     private removeItemVisual (item: { id: number }): void
@@ -474,6 +485,28 @@ export class World extends Scene
         {
             marker.destroy();
             this.itemMarkers.delete(item.id);
+            this.itemBobPhases.delete(item.id);
+            this.itemBobSeeds.delete(item.id);
+        }
+    }
+
+    /**
+     * Apply a per-item vertical bob so items on the ground feel alive
+     * rather than pasted onto the tile. Each item has its own phase so
+     * the field of items doesn't beat in unison. The bob is small (1px)
+     * and slow (~1.4s period) — subtle enough to read as "item sitting
+     * there" with a hint of motion, not "item floating".
+     */
+    private updateItemBobs (tick: number): void
+    {
+        if (this.itemMarkers.size === 0) return;
+        for (const [id, marker] of this.itemMarkers)
+        {
+            const phase = this.itemBobPhases.get(id) ?? 0;
+            const baseY = (marker as unknown as { _baseY?: number })._baseY;
+            if (baseY === undefined) continue; // not yet initialized
+            const bob = Math.sin(tick * 0.07 + phase) * 1.0;
+            marker.y = baseY + bob;
         }
     }
 
