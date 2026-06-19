@@ -107,6 +107,7 @@ const STAR_PEAK_ALPHA = 0.85;
 
 interface StarState {
     sprite: Phaser.GameObjects.Image;
+    halo: Phaser.GameObjects.Image;
     baseAlpha: number;   // 0.4-1.0, randomized per star
     twinklePhase: number;
     twinklePeriod: number;
@@ -322,23 +323,32 @@ export class Atmosphere
         // Stars. Screen-anchored (scrollFactor 0) so they stay in place as
         // the player pans the camera. Distributed across the viewport with
         // a slight bias toward the upper half (where the "sky" would be).
-        // Visibility scales with the night factor so they fade in at dusk
-        // and out at dawn, matching the firefly schedule.
+        // Each star is a 1×1 bright core surrounded by a 3×3 additive halo
+        // so the night sky reads as a starry field rather than as scattered
+        // single pixels. Visibility scales with the night factor so they
+        // fade in at dusk and out at dawn, matching the firefly schedule.
         this.ensureStarTexture(scene);
+        this.ensureStarHaloTexture(scene);
         for (let i = 0; i < STAR_COUNT; i++)
         {
-            const sprite = scene.add.image(0, 0, 'star-pixel');
+            // Bias Y toward upper half so stars cluster in the "sky"
+            const y = Math.pow(this.rng(), 1.6) * cam.height;
+            const x = this.rng() * cam.width;
+            const sprite = scene.add.image(x, y, 'star-pixel');
             sprite.setOrigin(0, 0);
             sprite.setScrollFactor(0);
             sprite.setDepth(51);
             sprite.setBlendMode(BlendModes.ADD);
-            // Bias Y toward upper half so stars cluster in the "sky"
-            const y = Math.pow(this.rng(), 1.6) * cam.height;
-            sprite.x = this.rng() * cam.width;
-            sprite.y = y;
             sprite.setAlpha(0);
+            const halo = scene.add.image(x, y, 'star-halo');
+            halo.setOrigin(0.5, 0.5);
+            halo.setScrollFactor(0);
+            halo.setDepth(51);
+            halo.setBlendMode(BlendModes.ADD);
+            halo.setAlpha(0);
             const star: StarState = {
                 sprite,
+                halo,
                 baseAlpha: 0.4 + this.rng() * 0.6,
                 twinklePhase: this.rng() * Math.PI * 2,
                 twinklePeriod: 1800 + this.rng() * 2200,
@@ -470,12 +480,15 @@ export class Atmosphere
         // Stars: fade in at night with the same night factor as fireflies.
         // Each star has its own per-star twinkle envelope (subtle, not a
         // hard blink) so the field reads as a sky full of slowly-varying
-        // points rather than a static grid.
+        // points rather than a static grid. Halo sits under the bright
+        // core at slightly lower alpha for a soft starry glow.
         for (const star of this.stars)
         {
             const twinkleT = (tick + star.twinklePhase * 100) / star.twinklePeriod;
             const twinkle = 0.6 + 0.4 * Math.sin(twinkleT * Math.PI * 2);
-            star.sprite.setAlpha(night * STAR_PEAK_ALPHA * star.baseAlpha * twinkle);
+            const starAlpha = night * STAR_PEAK_ALPHA * star.baseAlpha * twinkle;
+            star.sprite.setAlpha(starAlpha);
+            star.halo.setAlpha(starAlpha * 0.55);
         }
 
         // Ground mist. Drift each wisp right; when it leaves the right
@@ -508,7 +521,7 @@ export class Atmosphere
         this.leaves.length = 0;
         for (const ff of this.fireflies) { ff.sprite.destroy(); ff.halo.destroy(); }
         this.fireflies.length = 0;
-        for (const star of this.stars) star.sprite.destroy();
+        for (const star of this.stars) { star.sprite.destroy(); star.halo.destroy(); }
         this.stars.length = 0;
         for (const wisp of this.mistWisps) wisp.sprite.destroy();
         this.mistWisps.length = 0;
@@ -715,6 +728,27 @@ export class Atmosphere
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, 1, 1);
         scene.textures.addCanvas('star-pixel', c);
+    }
+
+    // Soft 3x3 radial-gradient halo for stars. Under ADD blend, the white
+    // gradient reads as a soft warm glow around the 1x1 core, so stars
+    // become more visible against dark-tinted world tiles.
+    private ensureStarHaloTexture (scene: Scene): void
+    {
+        if (scene.textures.exists('star-halo')) return;
+        const c = document.createElement('canvas');
+        c.width = 3;
+        c.height = 3;
+        const ctx = c.getContext('2d')!;
+        const cx = 1.5;
+        const cy = 1.5;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 1.5);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
+        grad.addColorStop(0.5, 'rgba(220, 230, 255, 0.35)');
+        grad.addColorStop(1, 'rgba(200, 220, 255, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 3, 3);
+        scene.textures.addCanvas('star-halo', c);
     }
 
     // Shared soft white rectangle for the ground mist wisps. The rectangle
