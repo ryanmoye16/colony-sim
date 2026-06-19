@@ -15,7 +15,6 @@ import { Smoke } from '../render/smoke';
 import { Sparks } from '../render/sparks';
 import { FootstepDust } from '../render/footstep-dust';
 import { Motes } from '../render/motes';
-import { Fireflies } from '../render/fireflies';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -68,7 +67,6 @@ export class World extends Scene
     private sparks: Sparks | null = null;
     private footstepDust: FootstepDust | null = null;
     private motes: Motes | null = null;
-    private fireflies: Fireflies | null = null;
     private foodMarker: GameObjects.Image | null = null;
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -197,11 +195,6 @@ export class World extends Scene
         // world. Adds constant subtle motion to the air. Additive blend so they
         // glow softly against any background.
         this.motes = new Motes(this, this.world.width, this.world.height, WORLD_SEED);
-
-        // Fireflies — warm glowing dots that fade in at dusk and out at dawn.
-        // Their visibility is driven by hour-of-day; they sit on grass and
-        // forest tiles and drift with gentle wander.
-        this.fireflies = new Fireflies(this, this.world, WORLD_SEED);
 
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
@@ -426,11 +419,6 @@ export class World extends Scene
         {
             this.motes.update(this.sim.tick * 1000, delta);
         }
-        if (this.fireflies && this.sim && this.atmosphere)
-        {
-            const hour = Atmosphere.hourFromTick(this.sim.tick);
-            this.fireflies.update(this.sim.tick * 1000, hour, delta);
-        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -505,7 +493,6 @@ export class World extends Scene
         this.sparks?.destroy();
         this.footstepDust?.destroy();
         this.motes?.destroy();
-        this.fireflies?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -702,9 +689,6 @@ export class World extends Scene
         // Motes — re-seed at world-center for consistent coverage.
         this.motes?.destroy();
         this.motes = new Motes(this, this.world.width, this.world.height, WORLD_SEED);
-        // Fireflies — rebuild from scratch so the population redistributes.
-        this.fireflies?.destroy();
-        this.fireflies = new Fireflies(this, this.world, WORLD_SEED);
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);
