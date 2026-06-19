@@ -14,6 +14,7 @@ import { Rain } from '../render/rain';
 import { Smoke } from '../render/smoke';
 import { Sparks } from '../render/sparks';
 import { FootstepDust } from '../render/footstep-dust';
+import { Motes } from '../render/motes';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -65,6 +66,7 @@ export class World extends Scene
     private smoke: Smoke | null = null;
     private sparks: Sparks | null = null;
     private footstepDust: FootstepDust | null = null;
+    private motes: Motes | null = null;
     private foodMarker: GameObjects.Image | null = null;
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -188,6 +190,11 @@ export class World extends Scene
         // this when a settler advances to a new tile, and the renderer throttles
         // emissions by tile type and travel distance.
         this.footstepDust = new FootstepDust(this, this.world, WORLD_SEED);
+
+        // Ambient floating motes — slow-drifting dust specks across the entire
+        // world. Adds constant subtle motion to the air. Additive blend so they
+        // glow softly against any background.
+        this.motes = new Motes(this, this.world.width, this.world.height, WORLD_SEED);
 
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
@@ -408,6 +415,10 @@ export class World extends Scene
         {
             this.footstepDust.update(this.sim.tick * 1000, delta);
         }
+        if (this.motes && this.sim)
+        {
+            this.motes.update(this.sim.tick * 1000, delta);
+        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -481,6 +492,7 @@ export class World extends Scene
         this.smoke?.destroy();
         this.sparks?.destroy();
         this.footstepDust?.destroy();
+        this.motes?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -674,6 +686,9 @@ export class World extends Scene
         // automatically when settlers are recreated.
         this.footstepDust?.destroy();
         this.footstepDust = new FootstepDust(this, this.world, WORLD_SEED);
+        // Motes — re-seed at world-center for consistent coverage.
+        this.motes?.destroy();
+        this.motes = new Motes(this, this.world.width, this.world.height, WORLD_SEED);
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);
