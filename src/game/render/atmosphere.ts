@@ -90,6 +90,26 @@ const LEAF_SPEED_MAX = 22;  // px/sec
 const LEAF_VARIANTS = ['particle-leaf-green', 'particle-leaf-orange', 'particle-leaf-brown'];
 
 // -----------------------------------------------------------------------------
+// Stars
+// -----------------------------------------------------------------------------
+// Tiny white pixels scattered across the screen, only visible at night. In
+// a top-down game there's no real "sky" to put them in, so they sit on top
+// of the world like the fireflies do. Kept very small (1-2px) and dim so
+// they read as distant stars rather than UI markers; the night tint
+// already darkens everything, so a modest alpha is enough to be visible.
+
+const STAR_COUNT = 60;
+const STAR_PEAK_ALPHA = 0.85;
+const STAR_VARIANT_PROB = 0.15;  // chance of a brighter "bright" star
+
+interface StarState {
+    sprite: Phaser.GameObjects.Image;
+    baseAlpha: number;   // 0.4-1.0, randomized per star
+    twinklePhase: number;
+    twinklePeriod: number;
+}
+
+// -----------------------------------------------------------------------------
 // Fireflies
 // -----------------------------------------------------------------------------
 // Small bright dots that drift in the air over the world. They're world-
@@ -160,6 +180,7 @@ export class Atmosphere
     private readonly vignette: Phaser.GameObjects.Graphics;
     private readonly leaves: LeafState[] = [];
     private readonly fireflies: FireflyState[] = [];
+    private readonly stars: StarState[] = [];
     private readonly rng: () => number;
 
     /**
@@ -230,6 +251,33 @@ export class Atmosphere
             };
             this.fireflies.push(ff);
             this.respawnFirefly(ff);
+        }
+
+        // Stars. Screen-anchored (scrollFactor 0) so they stay in place as
+        // the player pans the camera. Distributed across the viewport with
+        // a slight bias toward the upper half (where the "sky" would be).
+        // Visibility scales with the night factor so they fade in at dusk
+        // and out at dawn, matching the firefly schedule.
+        this.ensureStarTexture(scene);
+        for (let i = 0; i < STAR_COUNT; i++)
+        {
+            const sprite = scene.add.image(0, 0, 'star-pixel');
+            sprite.setOrigin(0, 0);
+            sprite.setScrollFactor(0);
+            sprite.setDepth(51);
+            sprite.setBlendMode(BlendModes.ADD);
+            // Bias Y toward upper half so stars cluster in the "sky"
+            const y = Math.pow(this.rng(), 1.6) * cam.height;
+            sprite.x = this.rng() * cam.width;
+            sprite.y = y;
+            sprite.setAlpha(0);
+            const star: StarState = {
+                sprite,
+                baseAlpha: 0.4 + this.rng() * 0.6,
+                twinklePhase: this.rng() * Math.PI * 2,
+                twinklePeriod: 1800 + this.rng() * 2200,
+            };
+            this.stars.push(star);
         }
 
         scene.scale.on('resize', () => {
@@ -315,6 +363,17 @@ export class Atmosphere
             const blinkSoft = blink * blink; // soften
             ff.sprite.setAlpha(night * FIREFLY_PEAK_ALPHA * blinkSoft);
         }
+
+        // Stars: fade in at night with the same night factor as fireflies.
+        // Each star has its own per-star twinkle envelope (subtle, not a
+        // hard blink) so the field reads as a sky full of slowly-varying
+        // points rather than a static grid.
+        for (const star of this.stars)
+        {
+            const twinkleT = (tick + star.twinklePhase * 100) / star.twinklePeriod;
+            const twinkle = 0.6 + 0.4 * Math.sin(twinkleT * Math.PI * 2);
+            star.sprite.setAlpha(night * STAR_PEAK_ALPHA * star.baseAlpha * twinkle);
+        }
     }
 
     destroy (): void
@@ -325,6 +384,8 @@ export class Atmosphere
         this.leaves.length = 0;
         for (const ff of this.fireflies) ff.sprite.destroy();
         this.fireflies.length = 0;
+        for (const star of this.stars) star.sprite.destroy();
+        this.stars.length = 0;
     }
 
     // -------------------------------------------------------------------------
@@ -489,5 +550,20 @@ export class Atmosphere
         ctx.fillStyle = '#dfff8a';
         ctx.fillRect(0, 0, 3, 3);
         scene.textures.addCanvas('firefly-pixel', c);
+    }
+
+    // Shared 1x1 white pixel for stars. Tiny because we want them to
+    // read as distant points; the night tint does most of the work and
+    // these are just the highlights.
+    private ensureStarTexture (scene: Scene): void
+    {
+        if (scene.textures.exists('star-pixel')) return;
+        const c = document.createElement('canvas');
+        c.width = 1;
+        c.height = 1;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 1, 1);
+        scene.textures.addCanvas('star-pixel', c);
     }
 }
