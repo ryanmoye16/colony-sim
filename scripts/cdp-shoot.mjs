@@ -81,14 +81,7 @@ await send('Runtime.evaluate', { expression: `window.__sim.setTick(${targetTick}
 await send('Runtime.evaluate', { expression: `window.__cam && window.__cam.setZoom(${zoom})` });
 await wait(100);
 
-// Reveal fog so we can see the biome layout. The World scene exposes __fog
-// on window for screenshot tooling. We also patch fog.decay to a no-op so
-// the "revealed" tiles stay at level 2 (visible) instead of decaying to
-// level 1 (seen-but-fogged) on the next frame — otherwise the screenshot
-// captures the post-decay state where everything is half-fogged.
-await send('Runtime.evaluate', { expression: 'window.__fog && window.__fog.revealAll()' });
-await send('Runtime.evaluate', { expression: 'window.__fog.decay = function(){}' });
-await send('Runtime.evaluate', { expression: 'window.__fog.revealAll()' });
+// (Fog of war removed — no reveal needed for screenshots.)
 await wait(150);
 
 // Pin the camera at the firepit for the duration of the capture. We freeze

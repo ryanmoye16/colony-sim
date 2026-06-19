@@ -9,7 +9,6 @@ import { Atmosphere } from '../render/atmosphere';
 import { PointLights, lightBoostForHour } from '../render/point-lights';
 import { SettlerShadows } from '../render/shadows';
 import { DecorationRenderer } from '../render/decoration-renderer';
-import { FogOfWar } from '../render/fog-of-war';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -26,7 +25,7 @@ import { serialize, deserialize } from '../save/serializer';
 import { SAVE_VERSION } from '../save/schema-version';
 import { Position, Render, AI } from '../ecs/components';
 import type { PositionData, RenderData, AIData } from '../ecs/components';
-import { ITEM_TEXTURE_KEYS } from '../render/sprites';
+import { ITEM_TEXTURE_KEYS, resolveTextureKey, STRUCTURE_SPRITE_KEYS } from '../render/sprites';
 import { mulberry32 } from '../util/rng';
 import { JobQueue } from '../jobs/job-queue';
 import { MineWorkGiver } from '../jobs/work-givers/mine';
@@ -34,8 +33,11 @@ import { HaulWorkGiver } from '../jobs/work-givers/haul';
 
 const WORLD_SEED = 42;
 const SETTLER_SEED = WORLD_SEED * 7 + 1;
-const FOOD_SOURCE = { tx: 192, ty: 128 };
-const STOCKPILE = { tx: 192, ty: 192 };
+// Central world coords (128, 128) put structures in the lake. Move them
+// to known-walkable land — the spawn area near (110, 110) is in a clearing
+// where the spawn settlers are also placed.
+const FOOD_SOURCE = { tx: 80, ty: 110 };
+const STOCKPILE = { tx: 70, ty: 130 };
 
 export class World extends Scene
 {
@@ -53,9 +55,8 @@ export class World extends Scene
     private atmosphere: Atmosphere | null = null;
     private pointLights: PointLights | null = null;
     private decorationRenderer: DecorationRenderer | null = null;
-    private fog: FogOfWar | null = null;
-    private foodMarker: GameObjects.Arc | null = null;
-    private stockpileMarker: GameObjects.Rectangle | null = null;
+    private foodMarker: GameObjects.Image | null = null;
+    private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
     private stockpile: { tx: number; ty: number } | null = null;
     private itemMarkers: Map<number, GameObjects.Image> = new Map();
@@ -154,31 +155,31 @@ export class World extends Scene
             );
         }
 
-        // Fog of war — black mask over tiles the player hasn't scouted yet.
-        // Initial visibility around each spawn point keeps the player from
-        // starting fully blind.
-        this.fog = new FogOfWar(this, this.world, 6);
-        for (const sp of spawnPoints) this.fog.revealAround(sp.tx, sp.ty, 6);
+        // Fog of war removed — player wanted full visibility from the start.
 
         this.foodSource = this.world.findWalkableAt(FOOD_SOURCE.tx, FOOD_SOURCE.ty);
-        this.foodMarker = this.add.circle(
+        // Food source marker — Kenney red potion sprite on the ground tile.
+        // Sits at depth 6 (above tiles, below items) so it reads as a
+        // structure placed on the world, not as a UI overlay.
+        this.foodMarker = this.add.image(
             this.foodSource.tx * TILE_SIZE + TILE_SIZE / 2,
             this.foodSource.ty * TILE_SIZE + TILE_SIZE / 2,
-            TILE_SIZE * 0.4,
-            0x55ff55, 0.9,
+            STRUCTURE_SPRITE_KEYS.foodSource,
         );
-        this.foodMarker.setStrokeStyle(2, 0x004400, 1);
-        this.foodMarker.setDepth(5);
+        this.foodMarker.setDisplaySize(TILE_SIZE, TILE_SIZE);
+        this.foodMarker.setDepth(6);
 
         this.stockpile = this.world.findWalkableAt(STOCKPILE.tx, STOCKPILE.ty);
-        this.stockpileMarker = this.add.rectangle(
+        // Stockpile marker — Kenney chest sprite. Replaces the old debug
+        // yellow rectangle. Chest reads as a wooden box that settlers can
+        // haul to.
+        this.stockpileMarker = this.add.image(
             this.stockpile.tx * TILE_SIZE + TILE_SIZE / 2,
             this.stockpile.ty * TILE_SIZE + TILE_SIZE / 2,
-            TILE_SIZE, TILE_SIZE,
-            0xffff00, 0.3,
-        );
-        this.stockpileMarker.setStrokeStyle(2, 0xaaaa00, 0.8);
-        this.stockpileMarker.setDepth(4);
+            STRUCTURE_SPRITE_KEYS.stockpile,
+        ) as GameObjects.Image;
+        this.stockpileMarker.setDisplaySize(TILE_SIZE, TILE_SIZE);
+        this.stockpileMarker.setDepth(6);
 
         this.world.events.on('item.added', (event) => this.spawnItemVisual(event));
         this.world.events.on('item.removed', (event) => this.removeItemVisual(event));
@@ -222,25 +223,18 @@ export class World extends Scene
         this.cursorText.setScrollFactor(0);
         this.cursorText.setDepth(1000);
 
-        this.portrait = this.add.image(0, 0, 'settler-red');
+        this.portrait = this.add.image(0, 0, resolveTextureKey('settler-red'));
         this.portrait.setVisible(false);
         this.portrait.setScrollFactor(0);
         this.portrait.setDepth(900);
         this.portrait.setDisplaySize(40, 40);
 
-        this.add.text(512, 750, 'WASD/Arrows/edge: pan  ·  Wheel: zoom  ·  Space: speed  ·  ESC: pause  ·  F3: reveal all  ·  Right-click: scout', {
+        this.add.text(512, 750, 'WASD/Arrows/edge: pan  ·  Wheel: zoom  ·  Space: speed  ·  ESC: pause', {
             fontFamily: 'Courier New',
             fontSize: 12,
             color: '#aaaaaa',
             align: 'center',
         }).setOrigin(0.5);
-
-        // Suppress browser context menu so right-click can be used for fog
-        // scouting without the OS menu appearing.
-        if (this.game.canvas)
-        {
-            this.game.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        }
 
         this.input.keyboard?.on('keydown-ESC', () => {
             this.scene.pause();
@@ -257,29 +251,12 @@ export class World extends Scene
 
         this.input.keyboard?.on('keydown-F5', () => this.save());
         this.input.keyboard?.on('keydown-F9', () => this.loadFromSave());
-        // F3 reveals the entire map (debug/scouting). Useful when the player
-        // wants to peek past the fog without walking settlers there.
-        this.input.keyboard?.on('keydown-F3', () => this.fog?.revealAll());
 
         this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
             if (pointer.button === 0)
             {
                 this.handleClick(pointer);
                 return;
-            }
-            if (pointer.button === 2 && this.fog && this.world)
-            {
-                // Right-click scouts: reveals a 6-tile radius around the
-                // clicked tile. Left-click is settler selection, right-click
-                // is exploration.
-                const wx = pointer.worldX;
-                const wy = pointer.worldY;
-                if (wx >= 0 && wy >= 0 && wx < this.world.width * TILE_SIZE && wy < this.world.height * TILE_SIZE)
-                {
-                    const tx = Math.floor(wx / TILE_SIZE);
-                    const ty = Math.floor(wy / TILE_SIZE);
-                    this.fog.revealAround(tx, ty, 6);
-                }
             }
         });
 
@@ -318,6 +295,7 @@ export class World extends Scene
                     cb(image.src);
                 });
             };
+            (window as unknown as { __scene: World }).__scene = this;
         }
     }
 
@@ -334,19 +312,6 @@ export class World extends Scene
         if (this.pointLights && this.cameraController)
         {
             this.pointLights.update(this.cameraController.cam, delta);
-        }
-        if (this.fog && this.ecs && this.cameraController)
-        {
-            // Decay last tick's visible tiles, then light up the area around
-            // each settler. Two passes per tick so the lit area tracks the
-            // settler positions smoothly.
-            this.fog.decay();
-            const settlerPositions: Array<{ tx: number; ty: number }> = [];
-            this.ecs.forEach<PositionData>(Position, (_entity, pos) => {
-                settlerPositions.push({ tx: pos.tx, ty: pos.ty });
-            });
-            this.fog.revealFromSettlers(settlerPositions);
-            this.fog.update(this.cameraController.cam);
         }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
@@ -383,9 +348,10 @@ export class World extends Scene
         const moving = !!(ai?.path && ai.pathIndex < ai.path.length && ai.state !== 'wandering');
         const phase = Math.floor(this.sim.tick / 12) % 2;
         const baseKey = render.textureKey;
-        const desiredKey = moving
+        const aliasKey = moving
             ? (phase === 0 ? `${baseKey}-walk-a` : `${baseKey}-walk-b`)
             : baseKey;
+        const desiredKey = resolveTextureKey(aliasKey);
         if (this.portrait.texture.key !== desiredKey && this.textures.exists(desiredKey))
         {
             this.portrait.setTexture(desiredKey);
@@ -414,7 +380,6 @@ export class World extends Scene
         this.shadows?.destroy();
         this.pointLights?.destroy();
         this.decorationRenderer?.destroy();
-        this.fog?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -433,7 +398,6 @@ export class World extends Scene
         this.shadows = null;
         this.pointLights = null;
         this.decorationRenderer = null;
-        this.fog = null;
         this.foodSource = null;
         this.stockpile = null;
         this.jobQueue = null;
@@ -655,7 +619,7 @@ export class World extends Scene
         const render = this.ecs.getComponent<RenderData>(entity, Render);
         if (render && this.portrait)
         {
-            this.portrait.setTexture(render.textureKey);
+            this.portrait.setTexture(resolveTextureKey(render.textureKey));
             this.portrait.setVisible(true);
             this.portrait.x = 44;
             this.portrait.y = 720;

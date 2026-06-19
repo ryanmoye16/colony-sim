@@ -34,69 +34,7 @@ export class World
     width: number = DEFAULT_WORLD_WIDTH;
     height: number = DEFAULT_WORLD_HEIGHT;
     decorations: DecorationEntry[] = [];
-    /**
-     * Per-tile reveal state for fog of war:
-     *   0 = unseen (full black)
-     *   1 = seen but not currently visible (50% black)
-     *   2 = currently visible (no fog)
-     * Lazily sized to width*height; on legacy saves it's empty (size 0) and
-     * the renderer treats that as "fully fogged".
-     */
-    reveal: Uint8Array = new Uint8Array(0);
     private nextItemId: ItemId = 1;
-
-    private ensureReveal (): void
-    {
-        const expected = this.width * this.height;
-        if (this.reveal.length !== expected)
-        {
-            this.reveal = new Uint8Array(expected);
-        }
-    }
-
-    /**
-     * Mark every tile within radius (Chebyshev distance) of (tx, ty) as
-     * currently visible (level 2). Tiles formerly at level 2 outside the
-     * new vision circles decay to level 1 ("seen but not visible") only
-     * when this is called from FogOfWar's decay pass — see that file.
-     */
-    revealAround (tx: number, ty: number, radius: number): void
-    {
-        this.ensureReveal();
-        const r = Math.max(0, radius | 0);
-        for (let dy = -r; dy <= r; dy++)
-        {
-            for (let dx = -r; dx <= r; dx++)
-            {
-                if (Math.max(Math.abs(dx), Math.abs(dy)) > r) continue;
-                const wx = tx + dx;
-                const wy = ty + dy;
-                if (!this.inBounds(wx, wy)) continue;
-                this.reveal[wy * this.width + wx] = 2;
-            }
-        }
-    }
-
-    /**
-     * Decay all "currently visible" tiles to "seen but not visible" (2 → 1).
-     * Tiles at level 0 (unseen) stay unseen. Called by FogOfWar after
-     * settler positions are processed each tick.
-     */
-    decayReveal (): void
-    {
-        if (this.reveal.length === 0) return;
-        for (let i = 0; i < this.reveal.length; i++)
-        {
-            if (this.reveal[i] === 2) this.reveal[i] = 1;
-        }
-    }
-
-    /** Reveal the entire map. Used by reveal-on-click to scout. */
-    revealAll (): void
-    {
-        this.ensureReveal();
-        this.reveal.fill(2);
-    }
 
     getChunk (cx: number, cy: number): Chunk
     {
@@ -213,7 +151,6 @@ export class World
             chunks,
             items,
             decorations: this.decorations.map((d) => ({ ...d })),
-            reveal: this.reveal.length > 0 ? Array.from(this.reveal) : undefined,
         };
     }
 
@@ -245,14 +182,6 @@ export class World
             this.events.emit('item.added', { ...item });
         }
         this.decorations = (state.decorations ?? []).map((d) => ({ ...d }));
-        if (state.reveal && state.reveal.length === this.width * this.height)
-        {
-            this.reveal = new Uint8Array(state.reveal);
-        }
-        else
-        {
-            this.reveal = new Uint8Array(0);
-        }
     }
 }
 
@@ -263,5 +192,4 @@ export interface WorldSave
     chunks: Array<{ key: string; tiles: number[] }>;
     items: Item[];
     decorations?: DecorationEntry[];
-    reveal?: number[];
 }
