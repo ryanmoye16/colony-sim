@@ -37,6 +37,22 @@ const SHIMMER_PERIOD_MAX = 4200;
 // it to a new water tile. Margin keeps it from popping at the edge.
 const RECYCLE_MARGIN_PX = 64;
 
+// Wave crests — thin white horizontal lines that drift slowly across the
+// water surface to give the ocean a sense of macro motion. The 220 pixel
+// sparkles provide the bright glints; the crests are the gentle swell.
+const CREST_COUNT = 48;
+const CREST_LENGTH_PX = 8;
+const CREST_HEIGHT_PX = 2;
+// Crests drift at roughly 4-10 px/s (a gentle breeze on still water) with
+// a sine-wave vertical bob that gives them the long lazy motion of swells.
+const CREST_VX_MIN = 4;
+const CREST_VX_MAX = 10;
+const CREST_BOB_AMP_MIN = 0.6;
+const CREST_BOB_AMP_MAX = 1.6;
+const CREST_BOB_PERIOD_MIN = 2200;
+const CREST_BOB_PERIOD_MAX = 4800;
+const CREST_ALPHA_MAX = 0.85;
+
 interface ShimmerEntry
 {
     sprite: Phaser.GameObjects.Image;
@@ -46,10 +62,22 @@ interface ShimmerEntry
     jitterY: number;     // 0..1 within tile
 }
 
+interface CrestEntry
+{
+    sprite: Phaser.GameObjects.Image;
+    vx: number;          // px/sec horizontal drift
+    bobAmp: number;      // px vertical bob amplitude
+    bobPeriod: number;   // ms per vertical cycle
+    bobPhase: number;    // 0..2π
+    baseY: number;       // anchor Y for the sine bob
+    alphaPhase: number;  // 0..2π phase for the alpha envelope
+}
+
 export class WaterShimmer
 {
     private readonly container: Phaser.GameObjects.Container;
     private readonly entries: ShimmerEntry[] = [];
+    private readonly crests: CrestEntry[] = [];
     private readonly waterTiles: Array<{ tx: number; ty: number }>;
     private readonly rng: () => number;
     private elapsedMs: number = 0;
@@ -66,6 +94,7 @@ export class WaterShimmer
         // Phaser's default white texture would work too but we want exact
         // control over the pixel size for the pixel-art aesthetic.
         this.ensureSparkleTexture(scene);
+        this.ensureCrestTexture(scene);
 
         for (let i = 0; i < SHIMMER_COUNT; i++)
         {
@@ -86,6 +115,31 @@ export class WaterShimmer
             };
             this.entries.push(entry);
             this.placeOnRandomWaterTile(entry);
+        }
+
+        // Wave crests — drift across the water horizontally with a gentle
+        // sine-wave vertical bob. Recycle when offscreen.
+        for (let i = 0; i < CREST_COUNT; i++)
+        {
+            const sprite = scene.add.image(0, 0, 'shimmer-crest');
+            sprite.setOrigin(0, 0);
+            sprite.setScrollFactor(1);
+            sprite.setDepth(2);
+            sprite.setBlendMode(BlendModes.ADD);
+            sprite.setAlpha(0);
+            this.container.add(sprite);
+
+            const crest: CrestEntry = {
+                sprite,
+                vx: CREST_VX_MIN + this.rng() * (CREST_VX_MAX - CREST_VX_MIN),
+                bobAmp: CREST_BOB_AMP_MIN + this.rng() * (CREST_BOB_AMP_MAX - CREST_BOB_AMP_MIN),
+                bobPeriod: CREST_BOB_PERIOD_MIN + this.rng() * (CREST_BOB_PERIOD_MAX - CREST_BOB_PERIOD_MIN),
+                bobPhase: this.rng() * Math.PI * 2,
+                alphaPhase: this.rng() * Math.PI * 2,
+                baseY: 0,
+            };
+            this.crests.push(crest);
+            this.placeCrest(crest);
         }
     }
 
@@ -118,12 +172,39 @@ export class WaterShimmer
                 this.placeOnRandomWaterTile(entry);
             }
         }
+
+        // Wave crests: drift right at vx, sine-bob vertically, alpha-pulse.
+        // Recycle when they exit the right edge of the viewport.
+        const dt = deltaMs / 1000;
+        for (const crest of this.crests)
+        {
+            const sprite = crest.sprite;
+            sprite.x += crest.vx * dt;
+            sprite.y = crest.baseY + Math.sin(
+                (this.elapsedMs / crest.bobPeriod) * Math.PI * 2 + crest.bobPhase
+            ) * crest.bobAmp;
+
+            // Alpha envelope: 0 -> max -> 0 over a ~3s period with phase
+            // offset per crest so they don't beat in unison. Soft, never
+            // bright enough to dominate the water color.
+            const aT = (this.elapsedMs + crest.alphaPhase * 1500) / 3000;
+            const aSine = Math.sin(aT * Math.PI * 2);
+            const a = CREST_ALPHA_MAX * (aSine * 0.5 + 0.5);
+            sprite.setAlpha(a);
+
+            if (sprite.x > maxX)
+            {
+                this.placeCrest(crest);
+            }
+        }
     }
 
     destroy (): void
     {
         for (const entry of this.entries) entry.sprite.destroy();
         this.entries.length = 0;
+        for (const crest of this.crests) crest.sprite.destroy();
+        this.crests.length = 0;
         this.container.destroy();
     }
 
@@ -176,5 +257,35 @@ export class WaterShimmer
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, SHIMMER_PIXEL_SIZE, SHIMMER_PIXEL_SIZE);
         scene.textures.addCanvas('shimmer-pixel', c);
+    }
+
+    // Shared 4x1 white pixel strip used for the wave-crest sprites. Stored
+    // in the scene's texture cache so all crests share one GL texture.
+    private ensureCrestTexture (scene: Scene): void
+    {
+        if (scene.textures.exists('shimmer-crest')) return;
+        const c = document.createElement('canvas');
+        c.width = CREST_LENGTH_PX;
+        c.height = CREST_HEIGHT_PX;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, CREST_LENGTH_PX, CREST_HEIGHT_PX);
+        scene.textures.addCanvas('shimmer-crest', c);
+    }
+
+    /**
+     * Drop a crest onto a random water tile at the left edge of the visible
+     * region (with margin so they fade in as they enter). Picks a vertical
+     * position within the tile so crests spread across the water column.
+     */
+    private placeCrest (crest: CrestEntry): void
+    {
+        if (this.waterTiles.length === 0) return;
+        const tile = this.waterTiles[Math.floor(this.rng() * this.waterTiles.length)];
+        crest.baseY = tile.ty * TILE_SIZE + this.rng() * TILE_SIZE;
+        crest.sprite.x = tile.tx * TILE_SIZE - RECYCLE_MARGIN_PX + this.rng() * TILE_SIZE;
+        crest.sprite.y = crest.baseY;
+        // Reroll alpha phase so the next pulse doesn't visibly repeat.
+        crest.alphaPhase = this.rng() * Math.PI * 2;
     }
 }
