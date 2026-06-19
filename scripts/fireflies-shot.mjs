@@ -1,11 +1,11 @@
-// Capture wide view of game in motion to assess overall look.
+// Capture fireflies visible at night (peak hour ~21:00).
 import WebSocket from 'ws';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const out = process.argv[2] ?? '/tmp/overview.png';
+const out = process.argv[2] ?? '/tmp/fireflies.png';
 const url = `http://localhost:5181/?skipMenu&t=${Date.now()}`;
 const userDataDir = mkdtempSync(join(tmpdir(), 'cdp-'));
 const port = 9460 + Math.floor(Math.random() * 100);
@@ -22,7 +22,7 @@ const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chro
 ], { stdio: 'ignore' });
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const log = (...a) => console.error('[overview]', ...a);
+const log = (...a) => console.error('[fireflies]', ...a);
 async function fetchJson (p) { return (await fetch(`http://127.0.0.1:${port}${p}`)).json(); }
 
 let tabs;
@@ -50,43 +50,44 @@ for (let i = 0; i < 60; i++) {
 }
 log('scene ready');
 
-// Daytime, default zoom
-await ev('window.__sim.setTick(720)');
+// 21:00 = tick 1260 (60 ticks per hour * 21). Actually let's compute:
+// hour = (tick % 1440) / 60 → tick 1260 = hour 21.0
+await ev('window.__sim.setTick(1260)');
 await ev('window.__sim.setSpeed(2)');
 await wait(2000);
 
 // Move camera to a forest area for visible grass detail
 await ev(`(() => {
   const cam = window.__cam.cam;
-  cam.setZoom(2);
+  cam.setZoom(2.5);
   cam.centerOn(2800, 2150);
   window.__cam.update = () => {};
 })()`);
 await wait(2000);
 
 const state = await ev(`(() => {
-  const motes = window.__scene.motes;
-  if (!motes) return { err: 'no motes' };
-  const visible = motes.motes.filter(m => m.sprite.alpha > 0.05).length;
-  const inView = motes.motes.filter(m => {
-    const cam = window.__cam.cam;
-    const dx = m.sprite.x - cam.midPoint.x;
-    const dy = m.sprite.y - cam.midPoint.y;
+  const ff = window.__scene.fireflies;
+  if (!ff) return { err: 'no fireflies' };
+  const visible = ff.fireflies.filter(f => f.sprite.alpha > 0.05).length;
+  const cam = window.__cam.cam;
+  const inView = ff.fireflies.filter(f => {
+    const dx = f.sprite.x - cam.midPoint.x;
+    const dy = f.sprite.y - cam.midPoint.y;
     return Math.abs(dx) < cam.width / 2 / cam.zoom && Math.abs(dy) < cam.height / 2 / cam.zoom;
   });
   return {
-    total: motes.motes.length,
+    total: ff.fireflies.length,
     visible,
     inView: inView.length,
-    inViewSample: inView.slice(0, 5).map(m => ({
-      x: Math.round(m.sprite.x),
-      y: Math.round(m.sprite.y),
-      alpha: m.sprite.alpha.toFixed(2),
-      size: m.sprite.displayWidth,
+    hour: window.__scene.atmosphere.hourFromTick(window.__sim.tick),
+    inViewSample: inView.slice(0, 5).map(f => ({
+      x: Math.round(f.sprite.x),
+      y: Math.round(f.sprite.y),
+      alpha: f.sprite.alpha.toFixed(2),
     })),
   };
 })()`);
-console.error('[motes state]', JSON.stringify(state));
+console.error('[fireflies state]', JSON.stringify(state));
 
 const dataUrl = await ev('new Promise((r) => window.__captureCanvasAsync((b64) => r(b64)))');
 if (dataUrl) {
