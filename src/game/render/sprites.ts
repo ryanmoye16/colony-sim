@@ -549,7 +549,11 @@ export function registerAllPixelSprites(scene: Scene): void
         scene.textures.addCanvas('tile-snow-0', c);
     }
 
-    if (!scene.textures.exists('particle-leaf'))
+    // Three leaf variants so the wind doesn't look like a single colored
+    // dust cloud. Greens read as summer foliage, oranges as autumn, browns
+    // as dead leaves — they're mixed in roughly even proportions by
+    // Atmosphere so the world always feels alive regardless of season.
+    if (!scene.textures.exists('particle-leaf-green'))
     {
         const c = document.createElement('canvas');
         c.width = 3; c.height = 3;
@@ -558,7 +562,34 @@ export function registerAllPixelSprites(scene: Scene): void
         ctx.fillStyle = '#6aa838'; ctx.fillRect(0, 1, 2, 1);
         ctx.fillStyle = '#3e7820'; ctx.fillRect(2, 1, 1, 1);
         ctx.fillStyle = '#3e7820'; ctx.fillRect(1, 2, 1, 1);
-        scene.textures.addCanvas('particle-leaf', c);
+        scene.textures.addCanvas('particle-leaf-green', c);
+    }
+    if (!scene.textures.exists('particle-leaf-orange'))
+    {
+        const c = document.createElement('canvas');
+        c.width = 3; c.height = 3;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#ffc850'; ctx.fillRect(1, 0, 1, 1);
+        ctx.fillStyle = '#e08838'; ctx.fillRect(0, 1, 2, 1);
+        ctx.fillStyle = '#a85020'; ctx.fillRect(2, 1, 1, 1);
+        ctx.fillStyle = '#a85020'; ctx.fillRect(1, 2, 1, 1);
+        scene.textures.addCanvas('particle-leaf-orange', c);
+    }
+    if (!scene.textures.exists('particle-leaf-brown'))
+    {
+        const c = document.createElement('canvas');
+        c.width = 3; c.height = 3;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = '#a89070'; ctx.fillRect(1, 0, 1, 1);
+        ctx.fillStyle = '#705840'; ctx.fillRect(0, 1, 2, 1);
+        ctx.fillStyle = '#483828'; ctx.fillRect(2, 1, 1, 1);
+        ctx.fillStyle = '#483828'; ctx.fillRect(1, 2, 1, 1);
+        scene.textures.addCanvas('particle-leaf-brown', c);
+    }
+    // Backwards-compat alias used by older code paths.
+    if (!scene.textures.exists('particle-leaf'))
+    {
+        scene.textures.addCanvas('particle-leaf', scene.textures.get('particle-leaf-green')!.getSourceImage() as HTMLCanvasElement);
     }
     void registerKenneyAlias;
 }

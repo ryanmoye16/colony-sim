@@ -75,12 +75,17 @@ const VIGNETTE_BAND_PX = 128;
 // Wind leaves
 // -----------------------------------------------------------------------------
 // Each particle has its own phase, speed, and vertical bob. Particles wrap
-// around the screen edges so the player always sees drift.
+// around the screen edges so the player always sees drift. We spawn 28
+// leaves per scene — green/orange/brown mixed roughly evenly so the wind
+// reads as "leaves of many kinds" rather than a single-color dust stream.
+// About 1 in 6 particles falls diagonally instead of drifting horizontally,
+// which gives the impression of leaves dropping from overhead branches.
 
-const LEAF_COUNT = 10;
+const LEAF_COUNT = 28;
 const LEAF_LIFETIME_MS = 6000;
 const LEAF_SPEED_MIN = 8;   // px/sec
 const LEAF_SPEED_MAX = 22;  // px/sec
+const LEAF_VARIANTS = ['particle-leaf-green', 'particle-leaf-orange', 'particle-leaf-brown'];
 
 interface LeafState {
     sprite: Phaser.GameObjects.Image;
@@ -135,9 +140,12 @@ export class Atmosphere
         this.drawVignette();
 
         // Wind leaves. Anchored to screen; respawn when they exit the view.
+        // Each leaf picks a color variant on spawn so the wind reads as
+        // many-kinds-of-leaves, not a single-color stream.
         for (let i = 0; i < LEAF_COUNT; i++)
         {
-            const sprite = scene.add.image(0, 0, 'particle-leaf');
+            const variant = LEAF_VARIANTS[Math.floor(this.rng() * LEAF_VARIANTS.length)];
+            const sprite = scene.add.image(0, 0, variant);
             sprite.setOrigin(0, 0);
             sprite.setScrollFactor(0);
             sprite.setDepth(56);
@@ -259,13 +267,28 @@ export class Atmosphere
         const h = cam.height;
         // Move it to just off the left edge so it drifts into view.
         leaf.vx = LEAF_SPEED_MIN + this.rng() * (LEAF_SPEED_MAX - LEAF_SPEED_MIN);
-        leaf.vy = 0;
+        // ~1 in 6 leaves falls diagonally (dropping from above) instead of
+        // drifting purely horizontally. The diagonal ones get a small vy
+        // and a slightly slower vx so they read as "falling" rather than
+        // "moving sideways fast".
+        if (this.rng() < 0.18)
+        {
+            leaf.vx *= 0.65;
+            leaf.vy = 6 + this.rng() * 10;
+        }
+        else
+        {
+            leaf.vy = 0;
+        }
         leaf.baseY = 8 + this.rng() * (h - 16);
         leaf.bobAmp = 4 + this.rng() * 8;
         leaf.bobFreq = 1.5 + this.rng() * 2.5;
         leaf.bobPhase = this.rng() * Math.PI * 2;
         leaf.age = 0;
         leaf.lifetime = LEAF_LIFETIME_MS * (0.8 + this.rng() * 0.4);
+        // Pick a fresh variant so each leaf can be a different color over time.
+        const variant = LEAF_VARIANTS[Math.floor(this.rng() * LEAF_VARIANTS.length)];
+        leaf.sprite.setTexture(variant);
         leaf.sprite.x = -8;
         leaf.sprite.y = leaf.baseY;
     }
@@ -276,13 +299,14 @@ export class Atmosphere
         const w = cam.width;
         const h = cam.height;
         const vx = LEAF_SPEED_MIN + this.rng() * (LEAF_SPEED_MAX - LEAF_SPEED_MIN);
+        const vy = this.rng() < 0.18 ? 6 + this.rng() * 10 : 0;
         const baseY = 8 + this.rng() * (h - 16);
         sprite.x = initial ? this.rng() * w : -8;
         sprite.y = baseY;
         return {
             sprite,
-            vx,
-            vy: 0,
+            vx: vy > 0 ? vx * 0.65 : vx,
+            vy,
             bobAmp: 4 + this.rng() * 8,
             bobFreq: 1.5 + this.rng() * 2.5,
             bobPhase: this.rng() * Math.PI * 2,
