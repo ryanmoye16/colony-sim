@@ -165,6 +165,7 @@ const FIREFLY_SPEED_MAX = 3.0;
 const FIREFLY_BLINK_PERIOD_MIN = 1400;  // ms
 const FIREFLY_BLINK_PERIOD_MAX = 3600;
 const FIREFLY_PEAK_ALPHA = 0.95;        // max alpha when active and dark
+const FIREFLY_HALO_ALPHA = 0.55;        // halo is dimmer than the core
 // Alpha is multiplied by this night factor, which is 1.0 at dusk/night and
 // drops to 0 at midday. Smoothstep gives a gentle dawn/dusk fade.
 const FIREFLY_NIGHT_PEAK = 1.0;
@@ -175,6 +176,7 @@ const FIREFLY_DAWN_END = 8;      // hour: back to invisible
 
 interface FireflyState {
     sprite: Phaser.GameObjects.Image;
+    halo: Phaser.GameObjects.Image;
     homeX: number;
     homeY: number;
     vx: number;
@@ -284,9 +286,12 @@ export class Atmosphere
         }
 
         // Fireflies. World-anchored small glow points that fade in at dusk
-        // and out at dawn. Sprites start hidden — the night factor decides
-        // when they become visible. We distribute them across a wide area
-        // so the player sees a handful of them in any given viewport.
+        // and out at dawn. Each firefly is a tiny 3×3 yellow-green core
+        // surrounded by a 9×9 additive halo — the halo is what reads as
+        // "glowing"; without it the core alone looks like a flat pixel.
+        // Sprites start hidden — the night factor decides when they become
+        // visible. We distribute them across a wide area so the player sees
+        // a handful of them in any given viewport.
         this.ensureFireflyTexture(scene);
         for (let i = 0; i < FIREFLY_COUNT; i++)
         {
@@ -296,8 +301,15 @@ export class Atmosphere
             sprite.setDepth(57);
             sprite.setBlendMode(BlendModes.ADD);
             sprite.setAlpha(0);
+            const halo = scene.add.image(0, 0, 'firefly-halo');
+            halo.setOrigin(0.5, 0.5);
+            halo.setScrollFactor(1);
+            halo.setDepth(57);
+            halo.setBlendMode(BlendModes.ADD);
+            halo.setAlpha(0);
             const ff: FireflyState = {
                 sprite,
+                halo,
                 homeX: 0, homeY: 0,
                 vx: 0, vy: 0,
                 bobPhase: 0, bobPeriod: 1, blinkPhase: 0,
@@ -305,6 +317,7 @@ export class Atmosphere
             this.fireflies.push(ff);
             this.respawnFirefly(ff);
         }
+        this.ensureFireflyHaloTexture(scene);
 
         // Stars. Screen-anchored (scrollFactor 0) so they stay in place as
         // the player pans the camera. Distributed across the viewport with
@@ -418,7 +431,9 @@ export class Atmosphere
         // 3. Update fireflies. Night factor scales the whole system's alpha
         // so they fade in at dusk and out at dawn. Each firefly has its own
         // blink phase on top of that, producing a twinkling field rather
-        // than a uniform glow.
+        // than a uniform glow. The halo trails the core with a slightly
+        // lower alpha, so the firefly reads as a bright dot surrounded by
+        // a soft glow rather than a flat pixel.
         const night = nightFactor(hour);
         for (const ff of this.fireflies)
         {
@@ -427,6 +442,8 @@ export class Atmosphere
             // instead of sailing off into the void.
             ff.sprite.x += ff.vx * dt;
             ff.sprite.y += ff.vy * dt;
+            ff.halo.x = ff.sprite.x;
+            ff.halo.y = ff.sprite.y;
             const dx = ff.sprite.x - ff.homeX;
             const dy = ff.sprite.y - ff.homeY;
             if (dx * dx + dy * dy > FIREFLY_RADIUS_PX * FIREFLY_RADIUS_PX)
@@ -443,7 +460,11 @@ export class Atmosphere
             const blinkT = (tick + ff.blinkPhase) / ff.bobPeriod;
             const blink = Math.max(0, Math.sin(blinkT * Math.PI * 2));
             const blinkSoft = blink * blink; // soften
-            ff.sprite.setAlpha(night * FIREFLY_PEAK_ALPHA * blinkSoft);
+            const coreAlpha = night * FIREFLY_PEAK_ALPHA * blinkSoft;
+            ff.sprite.setAlpha(coreAlpha);
+            // Halo is dimmer and doesn't blink as hard — it provides a
+            // continuous ambient glow under the twinkling core.
+            ff.halo.setAlpha(night * FIREFLY_HALO_ALPHA * (0.55 + 0.45 * blinkSoft));
         }
 
         // Stars: fade in at night with the same night factor as fireflies.
@@ -485,7 +506,7 @@ export class Atmosphere
         this.vignette.destroy();
         for (const leaf of this.leaves) leaf.sprite.destroy();
         this.leaves.length = 0;
-        for (const ff of this.fireflies) ff.sprite.destroy();
+        for (const ff of this.fireflies) { ff.sprite.destroy(); ff.halo.destroy(); }
         this.fireflies.length = 0;
         for (const star of this.stars) star.sprite.destroy();
         this.stars.length = 0;
@@ -639,9 +660,11 @@ export class Atmosphere
         ff.bobPhase = this.rng() * Math.PI * 2;
         ff.sprite.x = ff.homeX;
         ff.sprite.y = ff.homeY;
+        ff.halo.x = ff.homeX;
+        ff.halo.y = ff.homeY;
     }
 
-    // Shared 2x2 yellow-green pixel for fireflies. Stored once so all
+    // Shared 3x3 yellow-green pixel for fireflies. Stored once so all
     // fireflies share a single GL texture.
     private ensureFireflyTexture (scene: Scene): void
     {
@@ -655,6 +678,28 @@ export class Atmosphere
         ctx.fillStyle = '#dfff8a';
         ctx.fillRect(0, 0, 3, 3);
         scene.textures.addCanvas('firefly-pixel', c);
+    }
+
+    // Shared 9x9 radial-gradient halo for fireflies. Soft falloff so the
+    // glow blends into the surrounding dark; under ADD blend the center
+    // saturates with the core's color, so the halo + core together read
+    // as a single bright dot surrounded by light.
+    private ensureFireflyHaloTexture (scene: Scene): void
+    {
+        if (scene.textures.exists('firefly-halo')) return;
+        const c = document.createElement('canvas');
+        c.width = 9;
+        c.height = 9;
+        const ctx = c.getContext('2d')!;
+        const cx = 4.5;
+        const cy = 4.5;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 4.5);
+        grad.addColorStop(0, 'rgba(223, 255, 138, 0.7)');
+        grad.addColorStop(0.4, 'rgba(200, 230, 120, 0.35)');
+        grad.addColorStop(1, 'rgba(180, 200, 100, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 9, 9);
+        scene.textures.addCanvas('firefly-halo', c);
     }
 
     // Shared 1x1 white pixel for stars. Tiny because we want them to
