@@ -10,6 +10,7 @@ import { PointLights, lightBoostForHour } from '../render/point-lights';
 import { SettlerShadows } from '../render/shadows';
 import { DecorationRenderer } from '../render/decoration-renderer';
 import { WaterShimmer } from '../render/water-shimmer';
+import { Rain } from '../render/rain';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -57,6 +58,7 @@ export class World extends Scene
     private pointLights: PointLights | null = null;
     private decorationRenderer: DecorationRenderer | null = null;
     private waterShimmer: WaterShimmer | null = null;
+    private rain: Rain | null = null;
     private foodMarker: GameObjects.Image | null = null;
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -152,6 +154,11 @@ export class World extends Scene
         // Animated sun-glitter on water tiles — the baked water art is
         // static, so without this the ocean reads as striped wallpaper.
         this.waterShimmer = new WaterShimmer(this, this.world, WORLD_SEED);
+
+        // Persistent light rain over the world. Reads as ambient weather
+        // without dominating the frame. Rain is screen-space so it's
+        // always visible regardless of camera position.
+        this.rain = new Rain(this, WORLD_SEED);
 
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
@@ -353,6 +360,10 @@ export class World extends Scene
         {
             this.waterShimmer.update(this.cameraController.cam, delta);
         }
+        if (this.rain && this.sim)
+        {
+            this.rain.update(delta, this.sim.tick * 1000);
+        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -422,6 +433,7 @@ export class World extends Scene
         this.pointLights?.destroy();
         this.decorationRenderer?.destroy();
         this.waterShimmer?.destroy();
+        this.rain?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -441,6 +453,7 @@ export class World extends Scene
         this.pointLights = null;
         this.decorationRenderer = null;
         this.waterShimmer = null;
+        this.rain = null;
         this.foodSource = null;
         this.stockpile = null;
         this.jobQueue = null;
@@ -587,6 +600,10 @@ export class World extends Scene
         // also needs to rebuild. We pool new sparkles on every load.
         this.waterShimmer?.destroy();
         this.waterShimmer = new WaterShimmer(this, this.world, WORLD_SEED);
+        // Rain is screen-space and stateless across reloads, but rebuild
+        // the pool so old sprites don't leak.
+        this.rain?.destroy();
+        this.rain = new Rain(this, WORLD_SEED);
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);
