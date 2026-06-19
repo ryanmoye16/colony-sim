@@ -9,6 +9,7 @@ import { Atmosphere } from '../render/atmosphere';
 import { PointLights, lightBoostForHour } from '../render/point-lights';
 import { SettlerShadows } from '../render/shadows';
 import { DecorationRenderer } from '../render/decoration-renderer';
+import { WaterShimmer } from '../render/water-shimmer';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -55,6 +56,7 @@ export class World extends Scene
     private atmosphere: Atmosphere | null = null;
     private pointLights: PointLights | null = null;
     private decorationRenderer: DecorationRenderer | null = null;
+    private waterShimmer: WaterShimmer | null = null;
     private foodMarker: GameObjects.Image | null = null;
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -131,6 +133,10 @@ export class World extends Scene
         // Decoration clutter — ferns, pebbles, mushrooms, twigs scattered on
         // grass/dirt tiles. Static once placed; doesn't redraw on tile.changed.
         this.decorationRenderer = new DecorationRenderer(this, this.world);
+
+        // Animated sun-glitter on water tiles — the baked water art is
+        // static, so without this the ocean reads as striped wallpaper.
+        this.waterShimmer = new WaterShimmer(this, this.world, WORLD_SEED);
 
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
@@ -313,6 +319,10 @@ export class World extends Scene
         {
             this.pointLights.update(this.cameraController.cam, delta);
         }
+        if (this.waterShimmer && this.cameraController)
+        {
+            this.waterShimmer.update(this.cameraController.cam, delta);
+        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -380,6 +390,7 @@ export class World extends Scene
         this.shadows?.destroy();
         this.pointLights?.destroy();
         this.decorationRenderer?.destroy();
+        this.waterShimmer?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -398,6 +409,7 @@ export class World extends Scene
         this.shadows = null;
         this.pointLights = null;
         this.decorationRenderer = null;
+        this.waterShimmer = null;
         this.foodSource = null;
         this.stockpile = null;
         this.jobQueue = null;
@@ -510,6 +522,10 @@ export class World extends Scene
         // it picks up the (possibly-changed) decoration list from the save.
         this.decorationRenderer?.destroy();
         this.decorationRenderer = new DecorationRenderer(this, this.world);
+        // Water shimmer reads the (possibly-restored) world tiles, so it
+        // also needs to rebuild. We pool new sparkles on every load.
+        this.waterShimmer?.destroy();
+        this.waterShimmer = new WaterShimmer(this, this.world, WORLD_SEED);
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);
