@@ -61,6 +61,10 @@ const TINT_KEYS: TintKey[] = [
 const TINT_ALPHA_BASE = 0.36;
 const TINT_ALPHA_NIGHT = 0.62;
 
+// Wet-ground overlay alpha (peak). Kept low so the world reads as "wet
+// pavement" rather than "underwater". Modulated per-frame by rainIntensity.
+const WET_TINT_ALPHA = 0.18;
+
 // -----------------------------------------------------------------------------
 // Vignette
 // -----------------------------------------------------------------------------
@@ -213,6 +217,7 @@ interface LeafState {
 export class Atmosphere
 {
     private readonly tintRect: Phaser.GameObjects.Rectangle;
+    private readonly wetTintRect: Phaser.GameObjects.Rectangle;
     private readonly vignette: Phaser.GameObjects.Graphics;
     private readonly leaves: LeafState[] = [];
     private readonly fireflies: FireflyState[] = [];
@@ -244,6 +249,17 @@ export class Atmosphere
         this.tintRect.setScrollFactor(0);
         this.tintRect.setDepth(50);
         this.tintRect.setBlendMode(BlendModes.NORMAL);
+
+        // Wet-ground tint — cool blue overlay that adds a "wet" feel during
+        // sustained rain. Sits at depth 51 so it composes on top of the
+        // time-of-day tint. Alpha is modulated per frame based on rain
+        // intensity (passed in via update), so it can fade in and out as
+        // weather changes.
+        this.wetTintRect = scene.add.rectangle(0, 0, cam.width, cam.height, 0x4a5870, 0);
+        this.wetTintRect.setOrigin(0, 0);
+        this.wetTintRect.setScrollFactor(0);
+        this.wetTintRect.setDepth(51);
+        this.wetTintRect.setBlendMode(BlendModes.NORMAL);
 
         // Vignette — four dark rectangles at screen edges. Repositioned on
         // resize. Drawn at depth 55 (above tint).
@@ -339,11 +355,12 @@ export class Atmosphere
 
         scene.scale.on('resize', () => {
             this.tintRect.setSize(cam.width, cam.height);
+            this.wetTintRect.setSize(cam.width, cam.height);
             this.drawVignette();
         });
     }
 
-    update (tick: number, deltaMs: number): void
+    update (tick: number, deltaMs: number, rainIntensity: number = 0): void
     {
         // 1. Update tint color from hour-of-day. setFillStyle is the public
         // Phaser API for updating a Rectangle's color/alpha in place;
@@ -362,6 +379,14 @@ export class Atmosphere
         const darkness = this.hourDarkness(hour);
         const alpha = TINT_ALPHA_BASE + (TINT_ALPHA_NIGHT - TINT_ALPHA_BASE) * darkness;
         this.tintRect.setFillStyle(tintColor, alpha);
+
+        // Wet-ground tint — cool blue overlay scaled by rain intensity.
+        // Peak alpha (0.18) is small enough to read as "wet" rather than
+        // "in the ocean". Fades in/out smoothly as rainIntensity changes
+        // because we ease toward the target value each frame.
+        const wetTarget = Math.max(0, Math.min(1, rainIntensity)) * WET_TINT_ALPHA;
+        const current = this.wetTintRect.alpha;
+        this.wetTintRect.setAlpha(current + (wetTarget - current) * 0.04);
 
         // 2. Update leaves.
         const dt = deltaMs / 1000;
@@ -456,6 +481,7 @@ export class Atmosphere
     destroy (): void
     {
         this.tintRect.destroy();
+        this.wetTintRect.destroy();
         this.vignette.destroy();
         for (const leaf of this.leaves) leaf.sprite.destroy();
         this.leaves.length = 0;

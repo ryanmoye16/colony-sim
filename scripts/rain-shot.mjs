@@ -73,7 +73,7 @@ await evalExpr(`(() => {
   cam.scrollY = ty * 16 - cam.height / (2 * cam.zoom);
   window.__cam.update = () => {};
 })()`);
-await wait(2000);
+await wait(2500);
 
 const dataUrl = await evalExpr('new Promise((r) => window.__captureCanvasAsync((b64) => r(b64)))');
 if (dataUrl) {

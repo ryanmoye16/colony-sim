@@ -348,7 +348,9 @@ export class World extends Scene
         }
         if (this.sim && this.atmosphere)
         {
-            this.atmosphere.update(this.sim.tick, delta);
+            // Rain is currently always-on, so intensity is fixed at 1.
+            // When we add weather state this becomes dynamic.
+            this.atmosphere.update(this.sim.tick, delta, this.rain ? 1 : 0);
             const hour = Atmosphere.hourFromTick(this.sim.tick);
             this.pointLights?.setHourlyBoost(lightBoostForHour(hour));
         }
