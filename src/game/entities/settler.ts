@@ -6,6 +6,7 @@ import { isWalkable } from '../world/tile';
 import type { World as WorldModel } from '../world/world';
 import { TILE_SIZE } from '../config/game.config';
 import type { SettlerShadows } from '../render/shadows';
+import { resolveTextureKey } from '../render/sprites';
 
 export function createSettler (
     ecs: ECSWorld,
@@ -27,13 +28,17 @@ export function createSettler (
 
     const px = tx * TILE_SIZE + TILE_SIZE / 2;
     const py = ty * TILE_SIZE + TILE_SIZE / 2;
-    const sprite = scene.add.image(px, py, textureKey);
+    // Resolve alias key (e.g. 'settler-red') to the underlying PNG key
+    // (e.g. 'td-0085'). Phaser can't cheaply alias textures, so we hold
+    // the alias in RenderData and resolve at sprite-creation time.
+    const resolvedKey = resolveTextureKey(textureKey);
+    const sprite = scene.add.image(px, py, resolvedKey);
     container.add(sprite);
 
     const render: RenderData = { size: TILE_SIZE, gameObject: sprite, textureKey };
     ecs.addComponent(id, Render, render);
 
-    const ai: AIData = { state: 'wandering', nextMoveAt: 0, path: null, pathIndex: 0 };
+    const ai: AIData = { state: 'wandering', nextMoveAt: 0, path: null, pathIndex: 0, facing: 's' };
     ecs.addComponent(id, AI, ai);
 
     const needs: NeedsData = { hunger: 1.0, social: 1.0 };

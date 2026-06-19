@@ -622,7 +622,10 @@ export class World extends Scene
         if (!this.settlerContainer) return;
         const px = pos.tx * TILE_SIZE + TILE_SIZE / 2;
         const py = pos.ty * TILE_SIZE + TILE_SIZE / 2;
-        const sprite = this.add.image(px, py, render.textureKey);
+        // Resolve the alias (e.g. 'settler-red') to the Kenney PNG key
+        // (e.g. 'td-0085'). Phaser doesn't alias textures, so a raw alias
+        // would resolve to no texture and the sprite would be invisible.
+        const sprite = this.add.image(px, py, resolveTextureKey(render.textureKey));
         this.settlerContainer.add(sprite);
         render.gameObject = sprite;
     }

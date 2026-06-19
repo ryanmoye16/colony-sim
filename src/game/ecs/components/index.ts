@@ -21,6 +21,7 @@ void (null as unknown as Facing);export interface AIData
     pathIndex: number;
     jobId?: number;
     jobPhase?: 'go_to_target' | 'go_to_target2';
+    facing: Facing;
 }
 
 export interface PositionData

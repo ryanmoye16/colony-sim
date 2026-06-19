@@ -5,6 +5,7 @@ import { Position, Render, Life, AI } from '../components';
 import type { PositionData, RenderData, LifeData, AIData } from '../components';
 import { TILE_SIZE, getAgeStage, LIFESPAN_TICKS } from '../../config/game.config';
 import type { SettlerShadows } from '../../render/shadows';
+import { resolveTextureKey } from '../../render/sprites';
 
 const BASE_SIZE = TILE_SIZE * 0.95;
 
@@ -36,11 +37,22 @@ export class RenderSyncSystem implements System
             const baseKey = render.textureKey; // e.g. 'settler-red'
             const phase = Math.floor(tick / 12) % 2;
             const walkFrame = phase === 0 ? 'walk-a' : 'walk-b';
-            const targetKey = moving ? `${baseKey}-${walkFrame}` : baseKey;
+            const aliasKey = moving ? `${baseKey}-${walkFrame}` : baseKey;
+            // Resolve the alias (e.g. 'settler-red-walk-a') to the underlying
+            // Kenney PNG key (e.g. 'td-0085') before passing to Phaser.
+            const targetKey = resolveTextureKey(aliasKey);
             if (img.texture.key !== targetKey && this.scene.textures.exists(targetKey))
             {
                 img.setTexture(targetKey);
             }
+
+            // Mirror the sprite when facing west so the settler visually faces
+            // the direction they're walking. Kenney sprites all face south by
+            // default; mirroring is cheap (no texture swap) and reads correctly
+            // at small pixel-art sizes.
+            const facing = ai?.facing ?? 's';
+            const shouldFlip = facing === 'w';
+            if (img.flipX !== shouldFlip) img.setFlipX(shouldFlip);
 
             const life = ecs.getComponent<LifeData>(entity, Life);
             if (life)

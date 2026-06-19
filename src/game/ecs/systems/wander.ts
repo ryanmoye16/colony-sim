@@ -56,6 +56,7 @@ export class WanderSystem implements System
 
         pos.tx = ntx;
         pos.ty = nty;
+        ai.facing = dir[0] > 0 ? 'e' : dir[0] < 0 ? 'w' : dir[1] > 0 ? 's' : 'n';
         ai.nextMoveAt = tick + WANDER_MIN_DELAY + Math.floor(this.rng() * WANDER_DELAY_RANGE);
     }
 
@@ -87,8 +88,14 @@ export class WanderSystem implements System
         }
 
         const next = ai.path[ai.pathIndex];
+        const dx = next.tx - pos.tx;
+        const dy = next.ty - pos.ty;
         pos.tx = next.tx;
         pos.ty = next.ty;
+        if (dx > 0) ai.facing = 'e';
+        else if (dx < 0) ai.facing = 'w';
+        else if (dy > 0) ai.facing = 's';
+        else if (dy < 0) ai.facing = 'n';
         ai.pathIndex++;
         ai.nextMoveAt = tick + SEEK_STEP_DELAY;
     }
@@ -160,8 +167,16 @@ export class WanderSystem implements System
         }
 
         const next = ai.path[ai.pathIndex];
-        pos.tx = next.tx;
-        pos.ty = next.ty;
+        {
+            const dx = next.tx - pos.tx;
+            const dy = next.ty - pos.ty;
+            pos.tx = next.tx;
+            pos.ty = next.ty;
+            if (dx > 0) ai.facing = 'e';
+            else if (dx < 0) ai.facing = 'w';
+            else if (dy > 0) ai.facing = 's';
+            else if (dy < 0) ai.facing = 'n';
+        }
         ai.pathIndex++;
         ai.nextMoveAt = tick + SEEK_STEP_DELAY;
     }
@@ -256,8 +271,16 @@ export class WanderSystem implements System
         }
 
         const next = ai.path[ai.pathIndex];
-        pos.tx = next.tx;
-        pos.ty = next.ty;
+        {
+            const dx = next.tx - pos.tx;
+            const dy = next.ty - pos.ty;
+            pos.tx = next.tx;
+            pos.ty = next.ty;
+            if (dx > 0) ai.facing = 'e';
+            else if (dx < 0) ai.facing = 'w';
+            else if (dy > 0) ai.facing = 's';
+            else if (dy < 0) ai.facing = 'n';
+        }
         ai.pathIndex++;
         ai.nextMoveAt = tick + SEEK_STEP_DELAY;
     }

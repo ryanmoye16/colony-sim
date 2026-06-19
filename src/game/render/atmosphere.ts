@@ -100,7 +100,6 @@ const LEAF_VARIANTS = ['particle-leaf-green', 'particle-leaf-orange', 'particle-
 
 const STAR_COUNT = 60;
 const STAR_PEAK_ALPHA = 0.85;
-const STAR_VARIANT_PROB = 0.15;  // chance of a brighter "bright" star
 
 interface StarState {
     sprite: Phaser.GameObjects.Image;

@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { registerAllPixelSprites } from '../render/sprites';
+import { loadKenneyAssets, registerAllPixelSprites } from '../render/sprites';
 
 export class Preloader extends Scene
 {
@@ -10,6 +10,7 @@ export class Preloader extends Scene
 
     preload ()
     {
+        loadKenneyAssets(this);
     }
 
     create ()
