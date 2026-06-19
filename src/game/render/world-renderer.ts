@@ -183,6 +183,80 @@ export class WorldRenderer
         {
             this.drawBiomeHaze(ctx, x, y, world);
         }
+
+        // Bake shoreline foam on water tiles where they meet land. Painted
+        // on top so the white pixels actually show against the deep blue
+        // water (without that, foam under the sprite is invisible). Sits in
+        // a 2-3px band along the land-facing edge with sparse gaps so it
+        // reads as small breaking waves rather than a hard white outline.
+        if (type === TileType.Water || type === TileType.SandWater)
+        {
+            this.drawShorelineFoam(ctx, x, y, world);
+        }
+    }
+
+    // Paint white foam pixels along the edges of a water tile that face a
+    // non-water neighbor. Sparse 2px blocks with random gaps give the
+    // impression of small breaking waves lapping at the shore, not a hard
+    // outline. Deterministic per-tile so the foam doesn't change between
+    // redraws (which would happen on tile.changed for adjacent tiles).
+    private drawShorelineFoam (ctx: CanvasRenderingContext2D, x: number, y: number, world: World): void
+    {
+        const FOAM_DEPTH = 2;
+        const FOAM_ALPHA = 0.65;
+        // Per-tile deterministic noise so foam is stable across redraws
+        // (re-rolls only happen when adjacent tiles change, not per frame).
+        const seed = (x * 73856093) ^ (y * 19349663);
+        const rand = (i: number) => {
+            let s = (seed + i * 83492791) | 0;
+            s = (s ^ (s >>> 13)) * 1274126177 | 0;
+            return ((s ^ (s >>> 16)) >>> 0) / 0xffffffff;
+        };
+
+        const isLand = (tx: number, ty: number) => {
+            if (!world.inBounds(tx, ty)) return false;
+            const t = world.getTile(tx, ty);
+            return t !== TileType.Water && t !== TileType.SandWater;
+        };
+
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+        ctx.save();
+        ctx.fillStyle = `rgba(240, 248, 255, ${FOAM_ALPHA})`;
+
+        // North edge: foam in a row of 2px blocks, sparse gaps
+        if (isLand(x, y - 1))
+        {
+            for (let i = 0; i < TILE_SIZE; i += 2)
+            {
+                if (rand(i) < 0.55) ctx.fillRect(px + i, py, 2, FOAM_DEPTH);
+            }
+        }
+        // South edge
+        if (isLand(x, y + 1))
+        {
+            for (let i = 0; i < TILE_SIZE; i += 2)
+            {
+                if (rand(i + 100) < 0.55) ctx.fillRect(px + i, py + TILE_SIZE - FOAM_DEPTH, 2, FOAM_DEPTH);
+            }
+        }
+        // West edge
+        if (isLand(x - 1, y))
+        {
+            for (let i = 0; i < TILE_SIZE; i += 2)
+            {
+                if (rand(i + 200) < 0.55) ctx.fillRect(px, py + i, FOAM_DEPTH, 2);
+            }
+        }
+        // East edge
+        if (isLand(x + 1, y))
+        {
+            for (let i = 0; i < TILE_SIZE; i += 2)
+            {
+                if (rand(i + 300) < 0.55) ctx.fillRect(px + TILE_SIZE - FOAM_DEPTH, py + i, FOAM_DEPTH, 2);
+            }
+        }
+        ctx.restore();
     }
 
     // Pick a texture key for a tile. For walls, use neighbor-aware variant.
