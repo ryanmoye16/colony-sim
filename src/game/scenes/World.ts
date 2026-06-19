@@ -11,6 +11,8 @@ import { SettlerShadows } from '../render/shadows';
 import { DecorationRenderer } from '../render/decoration-renderer';
 import { WaterShimmer } from '../render/water-shimmer';
 import { Rain } from '../render/rain';
+import { Smoke } from '../render/smoke';
+import { Sparks } from '../render/sparks';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -59,6 +61,8 @@ export class World extends Scene
     private decorationRenderer: DecorationRenderer | null = null;
     private waterShimmer: WaterShimmer | null = null;
     private rain: Rain | null = null;
+    private smoke: Smoke | null = null;
+    private sparks: Sparks | null = null;
     private foodMarker: GameObjects.Image | null = null;
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -159,6 +163,24 @@ export class World extends Scene
         // without dominating the frame. Rain is screen-space so it's
         // always visible regardless of camera position.
         this.rain = new Rain(this, WORLD_SEED);
+
+        // Smoke from active fires (campfire, etc.). World-anchored so it
+        // drifts up from the fire source as the camera pans. The central
+        // campfire at spawn is the default emitter.
+        this.smoke = new Smoke(this, WORLD_SEED);
+        if (this.smoke && this.sim)
+        {
+            this.smoke.addSource(firepit.tx, firepit.ty, 1600, this.sim.tick);
+        }
+
+        // Warm ember sparks from the same fire sources as smoke. Faster,
+        // shorter-lived than smoke puffs — they flicker and die within a
+        // second. Combined with smoke, firepits read as actively burning.
+        this.sparks = new Sparks(this, WORLD_SEED);
+        if (this.sparks && this.sim)
+        {
+            this.sparks.addSource(firepit.tx, firepit.ty, 180, this.sim.tick);
+        }
 
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
@@ -366,6 +388,14 @@ export class World extends Scene
         {
             this.rain.update(delta, this.sim.tick * 1000);
         }
+        if (this.smoke && this.sim)
+        {
+            this.smoke.update(this.sim.tick * 1000, delta);
+        }
+        if (this.sparks && this.sim)
+        {
+            this.sparks.update(this.sim.tick * 1000, delta);
+        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -436,6 +466,8 @@ export class World extends Scene
         this.decorationRenderer?.destroy();
         this.waterShimmer?.destroy();
         this.rain?.destroy();
+        this.smoke?.destroy();
+        this.sparks?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -456,6 +488,7 @@ export class World extends Scene
         this.decorationRenderer = null;
         this.waterShimmer = null;
         this.rain = null;
+        this.smoke = null;
         this.foodSource = null;
         this.stockpile = null;
         this.jobQueue = null;
@@ -606,6 +639,24 @@ export class World extends Scene
         // the pool so old sprites don't leak.
         this.rain?.destroy();
         this.rain = new Rain(this, WORLD_SEED);
+        // Smoke is world-anchored to fire sources (campfire at spawn). It
+        // doesn't need a rebuild for world restore, but the pool is reset
+        // so any in-flight puffs don't carry over from the pre-save state.
+        this.smoke?.destroy();
+        this.smoke = new Smoke(this, WORLD_SEED);
+        if (this.smoke && this.sim && this.world)
+        {
+            const fp = this.world.findWalkableAt(128, 128);
+            this.smoke.addSource(fp.tx, fp.ty, 1600, this.sim.tick);
+        }
+        // Sparks piggyback on the same fire source as smoke.
+        this.sparks?.destroy();
+        this.sparks = new Sparks(this, WORLD_SEED);
+        if (this.sparks && this.sim && this.world)
+        {
+            const fp = this.world.findWalkableAt(128, 128);
+            this.sparks.addSource(fp.tx, fp.ty, 180, this.sim.tick);
+        }
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);

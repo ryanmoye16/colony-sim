@@ -1,0 +1,91 @@
+// Capture firepit area (smoke + sparks) at zoom 4 for clear verification.
+import WebSocket from 'ws';
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const out = process.argv[2] ?? '/tmp/firepit.png';
+const url = `http://localhost:5181/?skipMenu&t=${Date.now()}`;
+const userDataDir = mkdtempSync(join(tmpdir(), 'cdp-'));
+const port = 9460 + Math.floor(Math.random() * 100);
+const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+  '--no-sandbox', '--hide-scrollbars',
+  '--disable-cache',
+  '--no-first-run', '--no-default-browser-check',
+  '--disable-features=Translate,BackForwardCache',
+  '--window-size=1024,768',
+  '--window-position=100,100',
+  `--remote-debugging-port=${port}`,
+  `--user-data-dir=${userDataDir}`,
+  url,
+], { stdio: 'ignore' });
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const log = (...a) => console.error('[firepit]', ...a);
+async function fetchJson (p) { return (await fetch(`http://127.0.0.1:${port}${p}`)).json(); }
+
+let tabs;
+for (let i = 0; i < 30; i++) {
+  try { tabs = await fetchJson('/json'); if (tabs.length > 0) break; } catch {}
+  await wait(200);
+}
+const ws = new WebSocket(tabs.filter(t => t.type === 'page')[0].webSocketDebuggerUrl);
+let nextId = 1;
+const pending = new Map();
+ws.on('message', (d) => {
+  const m = JSON.parse(d.toString());
+  if (m.id != null) { const r = pending.get(m.id); if (r) { pending.delete(m.id); r.resolve(m); } }
+});
+await new Promise((r) => ws.on('open', r));
+const send = (m, p = {}) => { const id = nextId++; return new Promise((r) => { pending.set(id, { resolve: r }); ws.send(JSON.stringify({ id, method: m, params: p })); }); };
+const ev = async (e) => (await send('Runtime.evaluate', { expression: e, awaitPromise: true, returnByValue: true })).result?.result?.value;
+
+await send('Page.enable');
+await wait(3000);
+for (let i = 0; i < 60; i++) {
+  const r = await ev('!!window.__cam');
+  if (r === true) break;
+  await wait(250);
+}
+log('scene ready');
+
+// Jump sim to noon (12:00 = 720 ticks) so we see daytime tint
+await ev('window.__sim.setTick(720)');
+await wait(200);
+await ev('window.__sim.setSpeed(8)');
+await wait(2000);
+
+await ev(`(() => {
+  const cam = window.__cam.cam;
+  const w = window.__world;
+  const fp = w.findWalkableAt(128, 128);
+  cam.setZoom(4);
+  cam.centerOn(fp.tx * 16 + 8, fp.ty * 16 + 8 - 24);
+  window.__cam.update = () => {};
+})()`);
+await wait(500);
+
+const state = await ev(`(() => {
+  const smoke = window.__scene.smoke;
+  const sparks = window.__scene.sparks;
+  const activeSparks = sparks ? sparks.sparks.filter(s => s.active) : [];
+  return {
+    tick: window.__sim.tick,
+    smokeActive: smoke ? smoke.puffs.filter(p => p.active).length : 'n/a',
+    sparksActive: activeSparks.length,
+    sparksDetails: activeSparks.map(s => ({ alpha: s.sprite.alpha.toFixed(2), size: Math.round(s.sprite.displayWidth), x: Math.round(s.sprite.x), y: Math.round(s.sprite.y) })),
+  };
+})()`);
+log('state:', JSON.stringify(state));
+
+const dataUrl = await ev('new Promise((r) => window.__captureCanvasAsync((b64) => r(b64)))');
+if (dataUrl) {
+  writeFileSync(out, Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64'));
+  log('wrote', out);
+}
+await ev('window.__sim.setSpeed(0)');
+ws.close();
+chrome.kill();
+try { rmSync(userDataDir, { recursive: true, force: true }); } catch {}
+process.exit(0);
