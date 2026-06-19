@@ -65,8 +65,18 @@ export class Time
 
     setTick (tick: number): void
     {
+        const prevYear = this.year;
+        const prevSeason = this.season;
+        const prevDay = this.day;
         this._tick = tick;
         this.accumulator = 0;
+        // Fire boundary events so HUD/other listeners see the jump. Without
+        // this, setTick from outside (load-from-save, debug scripts) leaves
+        // the date display stuck on whatever it was before the jump.
+        if (this.year !== prevYear) this.bus.emit('time.year', { year: this.year });
+        if (this.season !== prevSeason) this.bus.emit('time.season', { season: this.season, year: this.year });
+        if (this.day !== prevDay) this.bus.emit('time.day', { day: this.day, season: this.season, year: this.year });
+        this.bus.emit('time.tick', { tick: this._tick });
     }
 
     update (realDt: number): void

@@ -61,6 +61,7 @@ export class World extends Scene
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
     private stockpile: { tx: number; ty: number } | null = null;
+    private lastSeason: number = -1;
     private itemMarkers: Map<number, GameObjects.Image> = new Map();
     private jobQueue: JobQueue | null = null;
     private mineWorkGiver: MineWorkGiver | null = null;
@@ -90,6 +91,18 @@ export class World extends Scene
         generateWorld(this.world, { seed: WORLD_SEED });
 
         this.sim = new Time();
+        // Re-bake the world on season change so trees shift through spring
+        // green → autumn orange → winter bare/snowy. Trees are baked into
+        // the static world-composite canvas, so the only way to change their
+        // color is to redraw — but this is rare (every 30 days) so the cost
+        // is negligible.
+        this.sim.on('time.season', () => {
+            if (this.world && this.worldRenderer)
+            {
+                this.worldRenderer.setSeason(this.sim!.season);
+                this.worldRenderer.restoreAll(this, this.world);
+            }
+        });
         this.hud = new HUD(this.sim);
         this.hud.setZoomChangeCallback((zoom) => {
             this.cameraController?.setZoom(zoom);
@@ -309,6 +322,21 @@ export class World extends Scene
     {
         this.sim?.update(delta / 1000);
         this.cameraController?.update(delta);
+        // Detect season changes that bypass the time.season event — e.g.
+        // when setTick() is called directly (the screenshot script does this).
+        // The season event only fires when update() processes a tick that
+        // crosses a boundary, so a direct setTick from outside doesn't trigger
+        // it. Polling each frame covers both cases.
+        if (this.sim && this.world && this.worldRenderer)
+        {
+            const s = this.sim.season;
+            if (s !== this.lastSeason)
+            {
+                this.lastSeason = s;
+                this.worldRenderer.setSeason(s);
+                this.worldRenderer.restoreAll(this, this.world);
+            }
+        }
         if (this.sim && this.atmosphere)
         {
             this.atmosphere.update(this.sim.tick, delta);

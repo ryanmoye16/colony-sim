@@ -2,12 +2,39 @@ import { Scene, GameObjects, Textures } from 'phaser';
 import { World } from '../world/world';
 import { TILE_SIZE } from '../config/game.config';
 import { TileType, biomeGroup } from '../world/tile';
-import { getTileTextureKey, WALL_TEXTURE_KEY } from './sprites';
+import { getTileTextureKey, WALL_TEXTURE_KEY, resolveTextureKey } from './sprites';
+
+// Per-season tree tints. Painted over tree pixels only (source-atop) so
+// the surrounding grass/underlay keeps its natural color. Each season has
+// a distinct palette so the world reads as living through the year:
+//
+//   Spring — fresh yellow-green push (early bloom)
+//   Summer — neutral, no tint (Kenney colors as-is)
+//   Autumn — heavy orange shift (most dramatic)
+//   Winter — cool blue-grey lift (bare/snowy)
+interface SeasonTint { r: number; g: number; b: number; alpha: number; }
+const TREE_SEASON_TINTS: Record<number, SeasonTint> = {
+    0: { r: 200, g: 255, b: 170, alpha: 0.28 },  // Spring — fresh yellow-green push
+    1: { r: 255, g: 255, b: 255, alpha: 0.00 },  // Summer — neutral, no tint
+    2: { r: 255, g: 140, b:  60, alpha: 0.55 },  // Autumn — heavy orange shift
+    3: { r: 220, g: 230, b: 245, alpha: 0.40 },  // Winter — cool blue-grey lift
+};
 
 export class WorldRenderer
 {
     readonly image: GameObjects.Image;
     private readonly textureKey: string;
+    private treeSeason: number = 1;
+
+    /**
+     * Set the current season for tree tinting. Called from World scene
+     * when the season changes; triggers a full world rebake so the new
+     * tint is applied to every tree tile.
+     */
+    setSeason (season: number): void
+    {
+        this.treeSeason = season;
+    }
 
     constructor (scene: Scene, world: World)
     {
@@ -28,9 +55,27 @@ export class WorldRenderer
 
     private drawAll (scene: Scene, world: World): void
     {
-        const canvas = document.createElement('canvas');
-        canvas.width = world.width * TILE_SIZE;
-        canvas.height = world.height * TILE_SIZE;
+        // Modify the existing canvas in place rather than recreating it.
+        // Removing + re-adding the CanvasTexture under the same key doesn't
+        // reliably refresh Phaser's GPU upload — the Image sprite keeps a
+        // reference to the old texture object and the canvas swap is invisible.
+        // In-place update + tex.update() matches what redrawTile does for
+        // single tiles, and is what makes the seasonal rebake actually
+        // appear on screen.
+        const existing = scene.textures.exists(this.textureKey);
+        let canvas: HTMLCanvasElement;
+        if (existing)
+        {
+            const tex = scene.textures.get(this.textureKey) as Textures.CanvasTexture;
+            canvas = tex.getCanvas()!;
+            canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        else
+        {
+            canvas = document.createElement('canvas');
+            canvas.width = world.width * TILE_SIZE;
+            canvas.height = world.height * TILE_SIZE;
+        }
         const ctx = canvas.getContext('2d')!;
 
         for (let y = 0; y < world.height; y++)
@@ -41,19 +86,46 @@ export class WorldRenderer
             }
         }
 
-        if (scene.textures.exists(this.textureKey))
+        if (existing)
         {
-            scene.textures.remove(this.textureKey);
+            const tex = scene.textures.get(this.textureKey) as Textures.CanvasTexture;
+            tex.update();
         }
-        scene.textures.addCanvas(this.textureKey, canvas);
+        else
+        {
+            scene.textures.addCanvas(this.textureKey, canvas);
+        }
     }
 
     private drawTileTo (ctx: CanvasRenderingContext2D, scene: Scene, x: number, y: number, world: World, type: TileType): void
     {
-        const key = this.getKeyForTile(world, x, y, type);
-        const tex = scene.textures.get(key) as Textures.CanvasTexture | null;
+        // For tree tiles, paint a grass underlay first. Kenney's tree
+        // sprites are small (10-14px tall) on a transparent 16x16 canvas —
+        // without an underlay, the void between the canopy and the tile
+        // border shows the world background color (#0a0a0a) and the trees
+        // look like they're floating in black. Compositing grass underneath
+        // reads as a tree growing on grass, which is what we want.
+        if (type === TileType.Tree || type === TileType.TreePine || type === TileType.TreeBush)
+        {
+            const grassKey = resolveTextureKey(getTileTextureKey(TileType.Grass, x, y));
+            const grassTex = scene.textures.get(grassKey);
+            const grassSrc = grassTex
+                ? ((grassTex as Textures.CanvasTexture).getCanvas?.() ?? grassTex.getSourceImage())
+                : null;
+            if (grassSrc) ctx.drawImage(grassSrc, x * TILE_SIZE, y * TILE_SIZE);
+            // The tree sprite goes on top. We don't get a chance to skip
+            // the ambient-occlusion / biome-haze passes below because they
+            // look fine on the grass underlay, so we still let them run.
+        }
+
+        const key = resolveTextureKey(this.getKeyForTile(world, x, y, type));
+        const tex = scene.textures.get(key);
         if (!tex) return;
-        const src = tex.getCanvas();
+        // Texture source can be either a CanvasTexture (procedural) or an
+        // Image texture (PNG). getCanvas() returns null for image textures,
+        // so fall back to getSourceImage() which returns an HTMLImageElement.
+        // CanvasRenderingContext2D.drawImage accepts both.
+        const src = (tex as Textures.CanvasTexture).getCanvas?.() ?? (tex.getSourceImage() as CanvasImageSource);
         if (!src) return;
 
         // Bake a soft drop-shadow under trees. The shadow is part of the
@@ -82,17 +154,35 @@ export class WorldRenderer
             this.drawAmbientOcclusion(ctx, x, y, world);
         }
 
-        // Bake biome-edge haze: a light cool-white gradient that bleeds
-        // onto this tile from a neighbor of a different biome group.
-        // Pools especially hard at the water↔land and sand↔grass borders,
-        // giving the world the kind of atmospheric perspective Odd Realm
-        // uses to separate biomes. Baked so it's free per frame.
+        ctx.drawImage(src, x * TILE_SIZE, y * TILE_SIZE);
+
+        // Seasonal tree tint: paint a color over ONLY the tree pixels using
+        // source-atop, so the surrounding grass underlay isn't affected. The
+        // tint shifts trees through spring green → autumn orange → winter
+        // bare/snowy so the world feels like it lives through the year.
+        if (type === TileType.Tree || type === TileType.TreePine || type === TileType.TreeBush)
+        {
+            const tint = TREE_SEASON_TINTS[this.treeSeason];
+            if (tint && tint.alpha > 0)
+            {
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.fillStyle = `rgba(${tint.r}, ${tint.g}, ${tint.b}, ${tint.alpha})`;
+                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                ctx.restore();
+            }
+        }
+
+        // Bake biome-edge haze ON TOP of the tile sprite so it actually shows
+        // (Kenney tiles are fully opaque, so painting under them is invisible).
+        // The haze bleeds in from any neighbor of a different biome group —
+        // strongest at water↔land and sand↔grass borders, giving the world
+        // atmospheric perspective. Pools ~14px deep at full alpha and falls off
+        // quickly so the boundary reads as a soft transition, not a hard edge.
         if (type !== TileType.Wall && type !== TileType.Tree && type !== TileType.TreePine && type !== TileType.TreeBush)
         {
             this.drawBiomeHaze(ctx, x, y, world);
         }
-
-        ctx.drawImage(src, x * TILE_SIZE, y * TILE_SIZE);
     }
 
     // Pick a texture key for a tile. For walls, use neighbor-aware variant.
@@ -164,19 +254,19 @@ export class WorldRenderer
     }
 
     // Paint a soft cool-white gradient onto this tile where it borders a
-    // different biome. The depth is wider than AO (10px vs 5px) and the
-    // color is a light blue-grey rather than black, so the effect reads
-    // as drifting mist/ground-fog rather than a shadow. Painted BEFORE
-    // the tile sprite so the tile draws on top, with the haze peeking
-    // out along the edges — feels like the world is breathing.
+    // different biome. Painted AFTER the tile sprite so the haze actually
+    // shows on top of the opaque Kenney tiles — without that, the gradient
+    // is completely hidden by the grass/dirt/sand art. Bumped depth to 14px
+    // and alpha to 0.55 so the soft transition is unmistakable. The cool
+    // blueish-white reads as drifting mist/ground-fog at any hour of day.
     private drawBiomeHaze (ctx: CanvasRenderingContext2D, x: number, y: number, world: World): void
     {
-        const HAZE_DEPTH = 10;
-        const HAZE_ALPHA = 0.32;
+        const HAZE_DEPTH = 14;
+        const HAZE_ALPHA = 0.55;
         // Cool blueish-white reads as atmospheric mist at any hour of day.
         // Slightly higher R than B gives a faint warm bias so the haze
         // doesn't fight the warmer terrain palettes.
-        const HAZE_COLOR = '198, 210, 230';
+        const HAZE_COLOR = '210, 222, 240';
 
         const myGroup = biomeGroup(world.getTile(x, y));
         if (myGroup === 0) return;
@@ -245,7 +335,14 @@ export class WorldRenderer
     restoreAll (scene: Scene, world: World): void
     {
         this.drawAll(scene, world);
+        // Force Phaser to re-upload the canvas to GPU. setTexture alone doesn't
+        // always pick up the new pixels — Phaser's renderer caches the texture
+        // object reference, and CanvasTexture.update() only marks dirty for
+        // the next frame. After restoring we set the texture again, then
+        // refresh the Image sprite so it re-binds.
         this.image.setTexture(this.textureKey);
+        const tex = scene.textures.get(this.textureKey) as Textures.CanvasTexture;
+        if (tex && (tex as unknown as { update?: () => void }).update) tex.update();
     }
 
     destroy (): void
