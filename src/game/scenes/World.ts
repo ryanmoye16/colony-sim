@@ -13,6 +13,7 @@ import { WaterShimmer } from '../render/water-shimmer';
 import { Rain } from '../render/rain';
 import { Smoke } from '../render/smoke';
 import { Sparks } from '../render/sparks';
+import { FootstepDust } from '../render/footstep-dust';
 import { generateWorld } from '../world/world-gen';
 import { ECSWorld } from '../ecs/world';
 import { createSettler, createChildSettler } from '../entities/settler';
@@ -63,6 +64,7 @@ export class World extends Scene
     private rain: Rain | null = null;
     private smoke: Smoke | null = null;
     private sparks: Sparks | null = null;
+    private footstepDust: FootstepDust | null = null;
     private foodMarker: GameObjects.Image | null = null;
     private stockpileMarker: GameObjects.Image | null = null;
     private foodSource: { tx: number; ty: number } | null = null;
@@ -182,6 +184,11 @@ export class World extends Scene
             this.sparks.addSource(firepit.tx, firepit.ty, 180, this.sim.tick);
         }
 
+        // Footstep dust behind walking settlers. WanderSystem calls back into
+        // this when a settler advances to a new tile, and the renderer throttles
+        // emissions by tile type and travel distance.
+        this.footstepDust = new FootstepDust(this, this.world, WORLD_SEED);
+
         const spawnPoints = [
             this.world.findWalkableAt(128, 128),
             this.world.findWalkableAt(96, 96),
@@ -249,7 +256,8 @@ export class World extends Scene
                 this.shadows,
             ),
         );
-        this.wander = new WanderSystem(this.world, this.foodSource, this.jobQueue, this.lifeSystem, rng);
+        this.wander = new WanderSystem(this.world, this.foodSource, this.jobQueue, this.lifeSystem, rng,
+            (entity, tx, ty, facing, tickMs) => this.footstepDust?.onSettlerStepped(entity, tx, ty, facing, tickMs));
         this.renderSync = new RenderSyncSystem(this, this.shadows);
         this.chronicleUI = new ChronicleUI(this.chronicle);
         this.minimap = new MiniMap(
@@ -396,6 +404,10 @@ export class World extends Scene
         {
             this.sparks.update(this.sim.tick * 1000, delta);
         }
+        if (this.footstepDust && this.sim)
+        {
+            this.footstepDust.update(this.sim.tick * 1000, delta);
+        }
         if (this.ecs && this.sim && this.world && this.jobQueue)
         {
             const tick = this.sim.tick;
@@ -468,6 +480,7 @@ export class World extends Scene
         this.rain?.destroy();
         this.smoke?.destroy();
         this.sparks?.destroy();
+        this.footstepDust?.destroy();
         this.itemMarkers.clear();
         this.hud = null;
         this.worldRenderer = null;
@@ -657,6 +670,10 @@ export class World extends Scene
             const fp = this.world.findWalkableAt(128, 128);
             this.sparks.addSource(fp.tx, fp.ty, 180, this.sim.tick);
         }
+        // Footstep dust — just reset the pool; throttling state is cleared
+        // automatically when settlers are recreated.
+        this.footstepDust?.destroy();
+        this.footstepDust = new FootstepDust(this, this.world, WORLD_SEED);
         this.sim.setTick(data.time.tick);
         this.sim.setSpeed(data.time.speed as SimSpeed);
         this.ecs.restore(data.ecs);

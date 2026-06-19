@@ -28,6 +28,7 @@ export class WanderSystem implements System
         private readonly jobQueue: JobQueue,
         private readonly lifeSystem: LifeSystem,
         private readonly rng: () => number,
+        private readonly onStepped?: (entity: number, tx: number, ty: number, facing: string, tickMs: number) => void,
     ) {}
 
     update (ecs: ECSWorld, tick: number, _dt: number): void
@@ -38,14 +39,14 @@ export class WanderSystem implements System
             const pos = ecs.getComponent<PositionData>(entity, Position);
             if (!pos) return;
 
-            if (ai.state === 'wandering') this.handleWander(pos, ai, tick);
+            if (ai.state === 'wandering') this.handleWander(entity, pos, ai, tick);
             else if (ai.state === 'seeking_food') this.handleSeekFood(ecs, entity, pos, ai, tick);
             else if (ai.state === 'seeking_social') this.handleSeekSocial(ecs, entity, pos, ai, tick);
             else if (ai.state === 'working') this.handleWorking(ecs, entity, pos, ai, tick);
         });
     }
 
-    private handleWander (pos: PositionData, ai: AIData, tick: number): void
+    private handleWander (entity: number, pos: PositionData, ai: AIData, tick: number): void
     {
         const dir = DIRS[Math.floor(this.rng() * DIRS.length)]!;
         const ntx = pos.tx + dir[0];
@@ -58,6 +59,7 @@ export class WanderSystem implements System
         pos.ty = nty;
         ai.facing = dir[0] > 0 ? 'e' : dir[0] < 0 ? 'w' : dir[1] > 0 ? 's' : 'n';
         ai.nextMoveAt = tick + WANDER_MIN_DELAY + Math.floor(this.rng() * WANDER_DELAY_RANGE);
+        this.onStepped?.(entity, ntx, nty, ai.facing, tick);
     }
 
     private handleSeekFood (
@@ -98,6 +100,7 @@ export class WanderSystem implements System
         else if (dy < 0) ai.facing = 'n';
         ai.pathIndex++;
         ai.nextMoveAt = tick + SEEK_STEP_DELAY;
+        this.onStepped?.(entity, pos.tx, pos.ty, ai.facing, tick);
     }
 
     private handleSeekSocial (
@@ -179,6 +182,7 @@ export class WanderSystem implements System
         }
         ai.pathIndex++;
         ai.nextMoveAt = tick + SEEK_STEP_DELAY;
+        this.onStepped?.(entity, pos.tx, pos.ty, ai.facing, tick);
     }
 
     private findAdjacentTileTo (
@@ -283,6 +287,7 @@ export class WanderSystem implements System
         }
         ai.pathIndex++;
         ai.nextMoveAt = tick + SEEK_STEP_DELAY;
+        this.onStepped?.(entity, pos.tx, pos.ty, ai.facing, tick);
     }
 
     private performJobAction (
